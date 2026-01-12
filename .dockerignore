@@ -1,0 +1,8 @@
+node_modules
+npm-debug.log
+logs/*.log
+.env
+.git
+.vscode
+Dockerfile
+ecosystem.config.cjs
