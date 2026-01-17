@@ -7,9 +7,9 @@ export const generateToken = (userId) => {
   });
 };
 
-export const generateRefreshToken = (userId) => {
+export const generateRefreshToken = (userId, expiresIn = env.JWT_REFRESH_EXPIRE) => {
   return jwt.sign({ id: userId }, env.JWT_REFRESH_SECRET, {
-    expiresIn: env.JWT_REFRESH_EXPIRE,
+    expiresIn,
   });
 };
 

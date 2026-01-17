@@ -25,11 +25,15 @@ import Logger from './src/utils/logger.js';
 // Routes
 import v1Routes from './src/routes/v1.routes.js';
 import healthRoutes from './src/routes/health.routes.js';
+import AdminService from './src/services/admin.service.js';
 
 // Connect to database
 console.log('Connecting to database...');
 await connectDB();
 console.log('Connected to database.');
+
+// Bootstrap Admin
+await AdminService.bootstrapAdmin();
 
 const app = express();
 

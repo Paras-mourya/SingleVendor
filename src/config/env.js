@@ -28,6 +28,13 @@ const envSchema = z.object({
   SENTRY_DSN: z.string().url().optional(),
   SENTRY_ENV: z.enum(['development', 'production', 'test']).default('development'),
 
+  // Admin Credentials
+  ADMIN_EMAIL: z.string().email('ADMIN_EMAIL must be a valid email'),
+  ADMIN_PASSWORD: z.string().min(8, 'ADMIN_PASSWORD must be at least 8 characters'),
+
+  // Allowed Origins for CORS
+  ALLOWED_ORIGINS: z.string().default('http://localhost:3000,http://localhost:5173'),
+
   // Optional but recommended
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly']).default('info'),
   REDIS_URL: z.string().url().optional(),

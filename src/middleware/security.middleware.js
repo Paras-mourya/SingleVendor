@@ -7,6 +7,8 @@ import AppError from '../utils/AppError.js';
 import Logger from '../utils/logger.js';
 import { HTTP_STATUS } from '../constants.js';
 
+import env from '../config/env.js';
+
 /**
  * Enterprise Security Middleware Configuration
  * Implements strict CSP, Sanitization, CORS Whitelisting, and Rate Limiting.
@@ -48,8 +50,8 @@ const securityMiddleware = (app) => {
   });
 
   // 3. CORS configuration - Enterprise Whitelist approach
-  const whitelist = process.env.ALLOWED_ORIGINS 
-    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()) 
+  const whitelist = env.ALLOWED_ORIGINS 
+    ? env.ALLOWED_ORIGINS.split(',').map(o => o.trim()) 
     : [];
 
   app.use(
@@ -61,7 +63,7 @@ const securityMiddleware = (app) => {
         // Normalize origin (Remove trailing slashes)
         const normalizedOrigin = origin.replace(/\/$/, "");
         const isWhitelisted = whitelist.includes(normalizedOrigin) || whitelist.includes(origin);
-        const isDevelopment = process.env.NODE_ENV === 'development';
+        const isDevelopment = env.NODE_ENV === 'development';
 
         if (isWhitelisted || isDevelopment) {
           callback(null, true);
@@ -70,7 +72,7 @@ const securityMiddleware = (app) => {
           Logger.error(`🚨 CORS VIOLATION: Origin "${origin}" is not authorized`, {
             blockedOrigin: origin,
             allowedWhitelist: whitelist,
-            environment: process.env.NODE_ENV
+            environment: env.NODE_ENV
           });
           callback(new AppError(`Access Denied by CORS Policy. Origin "${origin}" is not whitelisted.`, HTTP_STATUS.FORBIDDEN, 'CORS_ERROR'));
         }

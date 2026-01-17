@@ -3,6 +3,8 @@ import authRoutes from './auth.routes.js';
 import healthRoutes from './health.routes.js';
 import uploadRoutes from './upload.routes.js';
 
+import adminRoutes from './admin.routes.js';
+
 const router = express.Router();
 
 /**
@@ -10,6 +12,7 @@ const router = express.Router();
  * Centralizes all version 1 endpoints.
  */
 router.use('/auth', authRoutes);
+router.use('/admin/auth', adminRoutes);
 router.use('/upload', uploadRoutes);
 
 // Health check can also be versioned if needed, but usually kept root

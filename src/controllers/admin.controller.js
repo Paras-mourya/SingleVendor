@@ -1,0 +1,105 @@
+import AdminService from '../services/admin.service.js';
+import { HTTP_STATUS, SUCCESS_MESSAGES } from '../constants.js';
+import { ApiResponse } from '../utils/apiResponse.js';
+
+class AdminController {
+  /**
+   * @desc    Admin login
+   * @route   POST /api/v1/admin/auth/login
+   * @access  Public
+   */
+  login = async (req, res) => {
+    const { email, password, rememberMe } = req.body;
+
+    const result = await AdminService.login(email, password, rememberMe);
+
+    // Set cookie if needed (optional based on architecture, but common)
+    const cookieOptions = {
+      expires: new Date(Date.now() + (rememberMe ? 30 : 1) * 24 * 60 * 60 * 1000),
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+    };
+
+    res.cookie('adminToken', result.tokens.accessToken, cookieOptions);
+
+    return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, result, SUCCESS_MESSAGES.LOGIN_SUCCESS));
+  };
+
+  /**
+   * @desc    Admin logout
+   * @route   POST /api/v1/admin/auth/logout
+   * @access  Private (Admin)
+   */
+  logout = async (req, res) => {
+    res.cookie('adminToken', 'none', {
+      expires: new Date(Date.now() + 10 * 1000),
+      httpOnly: true,
+    });
+
+    return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, null, SUCCESS_MESSAGES.LOGOUT_SUCCESS));
+  };
+
+  /**
+   * @desc    Get current admin profile
+   * @route   GET /api/v1/admin/auth/me
+   * @access  Private (Admin)
+   */
+  getMe = async (req, res) => {
+    return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, {
+      admin: {
+        id: req.admin._id,
+        name: req.admin.name,
+        email: req.admin.email,
+        phoneNumber: req.admin.phoneNumber,
+        photo: req.admin.photo,
+      },
+    }, SUCCESS_MESSAGES.FETCHED));
+  };
+
+  /**
+   * @desc    Update admin profile
+   * @route   PATCH /api/v1/admin/auth/profile
+   * @access  Private (Admin)
+   */
+  updateProfile = async (req, res) => {
+    const result = await AdminService.updateProfile(req.admin._id, req.body);
+    return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, result, SUCCESS_MESSAGES.UPDATED));
+  };
+
+  /**
+   * @desc    Update admin photo
+   * @route   PATCH /api/v1/admin/auth/photo
+   * @access  Private (Admin)
+   */
+  updatePhoto = async (req, res) => {
+    if (!req.file) {
+      throw new AppError('Photo is required', HTTP_STATUS.BAD_REQUEST, 'VALIDATION_ERROR');
+    }
+
+    const photo = await AdminService.updatePhoto(req.admin._id, req.file);
+    return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, photo, 'Photo updated successfully'));
+  };
+
+  /**
+   * @desc    Delete admin photo
+   * @route   DELETE /api/v1/admin/auth/photo
+   * @access  Private (Admin)
+   */
+  deletePhoto = async (req, res) => {
+    await AdminService.deletePhoto(req.admin._id);
+    return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, null, 'Photo deleted successfully'));
+  };
+
+  /**
+   * @desc    Update admin password
+   * @route   PATCH /api/v1/admin/auth/update-password
+   * @access  Private (Admin)
+   */
+  updatePassword = async (req, res) => {
+    const { newPassword } = req.body;
+    await AdminService.updatePassword(req.admin._id, newPassword);
+    return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, null, 'Password updated successfully'));
+  };
+}
+
+export default new AdminController();
