@@ -1,40 +1,71 @@
-import Redis from 'ioredis';
+import redisClient from '../config/redis.js';
 import Logger from './logger.js';
-import env from '../config/env.js';
 
-class CacheService {
-  constructor() {
-    if (env.REDIS_URL) {
-      this.redis = new Redis(env.REDIS_URL, {
-        maxRetriesPerRequest: 3,
-        retryStrategy: (times) => Math.min(times * 50, 2000),
-      });
-
-      this.redis.on('error', (err) => Logger.error('Redis Error', { error: err.message }));
-      this.redis.on('connect', () => Logger.info('Redis Connected'));
+class Cache {
+  /**
+   * Set value in cache
+   * @param {string} key
+   * @param {any} value
+   * @param {number} ttl - Time to live in seconds (default 1 hour)
+   */
+  async set(key, value, ttl = 3600) {
+    try {
+      const stringValue = JSON.stringify(value);
+      await redisClient.set(key, stringValue, 'EX', ttl);
+      Logger.debug(`Cache Set: ${key}`);
+    } catch (error) {
+      Logger.error(`Cache Set Error: ${key}`, { error: error.message });
     }
   }
 
+  /**
+   * Get value from cache
+   * @param {string} key
+   * @returns {Promise<any|null>}
+   */
   async get(key) {
-    if (!this.redis) return null;
-    const data = await this.redis.get(key);
-    return data ? JSON.parse(data) : null;
+    try {
+      const value = await redisClient.get(key);
+      if (value) {
+        Logger.debug(`Cache Hit: ${key}`);
+        return JSON.parse(value);
+      }
+      Logger.debug(`Cache Miss: ${key}`);
+      return null;
+    } catch (error) {
+      Logger.error(`Cache Get Error: ${key}`, { error: error.message });
+      return null;
+    }
   }
 
-  async set(key, value, expiry = 3600) {
-    if (!this.redis) return;
-    await this.redis.set(key, JSON.stringify(value), 'EX', expiry);
-  }
-
+  /**
+   * Delete value from cache (Invalidation)
+   * @param {string} key
+   */
   async del(key) {
-    if (!this.redis) return;
-    await this.redis.del(key);
+    try {
+      await redisClient.del(key);
+      Logger.info(`Cache Invalidated: ${key}`);
+    } catch (error) {
+      Logger.error(`Cache Delete Error: ${key}`, { error: error.message });
+    }
   }
 
-  async flush() {
-    if (!this.redis) return;
-    await this.redis.flushall();
+  /**
+   * Delete keys by pattern
+   * @param {string} pattern
+   */
+  async delByPattern(pattern) {
+    try {
+      const keys = await redisClient.keys(pattern);
+      if (keys.length > 0) {
+        await redisClient.del(...keys);
+        Logger.info(`Cache Pattern Invalidated: ${pattern} (${keys.length} keys)`);
+      }
+    } catch (error) {
+      Logger.error(`Cache Pattern Delete Error: ${pattern}`, { error: error.message });
+    }
   }
 }
 
-export default new CacheService();
+export default new Cache();

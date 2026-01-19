@@ -6,6 +6,7 @@ import { HTTP_STATUS } from '../constants.js';
 import { z } from 'zod';
 
 import uploadMiddleware from '../middleware/upload.middleware.js';
+import cacheMiddleware from '../middleware/cache.middleware.js';
 
 const router = express.Router();
 
@@ -86,7 +87,7 @@ router.post('/reset-password', authLimiter, validate(resetPasswordSchema), Admin
 router.use(adminProtect);
 
 router.post('/logout', AdminController.logout);
-router.get('/me', AdminController.getMe);
+router.get('/me', cacheMiddleware(3600), AdminController.getMe);
 router.patch('/profile', validate(updateProfileSchema), AdminController.updateProfile);
 router.patch('/photo', uploadMiddleware.single('photo'), AdminController.updatePhoto);
 router.delete('/photo', AdminController.deletePhoto);

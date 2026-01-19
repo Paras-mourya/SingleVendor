@@ -8,10 +8,22 @@ import env from '../config/env.js';
 import Logger from '../utils/logger.js';
 import EmailService from './email.service.js';
 import crypto from 'crypto';
+import Cache from '../utils/cache.js';
 
 import { uploadToCloudinary, deleteFromCloudinary } from '../utils/cloudinary.js';
 
+const ADMIN_CACHE_PREFIX = 'admin:profile:';
+const ADMIN_RESPONSE_CACHE_PREFIX = 'response:admin:';
+
 class AdminService {
+  /**
+   * Helper to invalidate all admin caches
+   */
+  async invalidateAdminCache(adminId) {
+    await Cache.del(`${ADMIN_CACHE_PREFIX}${adminId}`);
+    await Cache.delByPattern(`${ADMIN_RESPONSE_CACHE_PREFIX}${adminId}:*`);
+    Logger.debug(`Admin Cache Invalidated: ${adminId}`);
+  }
   /**
    * Admin Login logic with "Remember Me"
    */
@@ -137,6 +149,8 @@ class AdminService {
 
     AuditLogger.log('ADMIN_PROFILE_UPDATED', 'ADMIN', { adminId, updatedFields: Object.keys(updateData) });
 
+    await this.invalidateAdminCache(adminId);
+
     return {
       id: updatedAdmin._id,
       name: updatedAdmin.name,
@@ -170,6 +184,8 @@ class AdminService {
 
     const updatedAdmin = await AdminRepository.updateById(adminId, { photo: photoData });
     AuditLogger.log('ADMIN_PHOTO_UPDATED', 'ADMIN', { adminId });
+    
+    await this.invalidateAdminCache(adminId);
 
     return updatedAdmin.photo;
   }
@@ -192,6 +208,7 @@ class AdminService {
     });
 
     AuditLogger.log('ADMIN_PHOTO_DELETED', 'ADMIN', { adminId });
+    await this.invalidateAdminCache(adminId);
     return true;
   }
 
@@ -208,6 +225,7 @@ class AdminService {
     await admin.save(); // Model pre-save hook will hash it
 
     AuditLogger.log('ADMIN_PASSWORD_CHANGED', 'ADMIN', { adminId });
+    await this.invalidateAdminCache(adminId);
     return true;
   }
 

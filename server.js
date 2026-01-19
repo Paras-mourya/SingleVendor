@@ -11,6 +11,7 @@ import Sentry, { setupExpressErrorHandler } from "./instrument.js";
 
 // Configs
 import connectDB from './src/config/db.js';
+import redisClient, { closeRedis } from './src/config/redis.js';
 import { setupSwagger } from './src/config/swagger.js';
 
 // Middlewares
@@ -31,6 +32,14 @@ import AdminService from './src/services/admin.service.js';
 console.log('Connecting to database...');
 await connectDB();
 console.log('Connected to database.');
+
+// Connect to Redis (Enterprise: verify connectivity on startup)
+try {
+  await redisClient.connect();
+} catch (err) {
+  Logger.error('Redis connection failed on startup', { error: err.message });
+  // We don't exit(1) here if Redis is optional, but for enterprise we usually want it.
+}
 
 // Bootstrap Admin
 await AdminService.bootstrapAdmin();
@@ -109,6 +118,10 @@ const gracefulShutdown = (signal) => {
       const mongoose = (await import('mongoose')).default;
       await mongoose.connection.close();
       Logger.info('Database connection closed.');
+      
+      await closeRedis();
+      Logger.info('Redis connection closed.');
+      
       process.exit(0);
     } catch (err) {
       Logger.error('Error during shutdown', { error: err.message });
