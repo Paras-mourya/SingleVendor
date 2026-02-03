@@ -8,6 +8,7 @@ import Logger from '../utils/logger.js';
 import { HTTP_STATUS } from '../constants.js';
 
 import env from '../config/env.js';
+import systemConfig from '../utils/systemConfig.js';
 
 /**
  * Enterprise Security Middleware Configuration
@@ -50,8 +51,8 @@ const securityMiddleware = (app) => {
   });
 
   // 3. CORS configuration - Enterprise Whitelist approach
-  const whitelist = env.ALLOWED_ORIGINS 
-    ? env.ALLOWED_ORIGINS.split(',').map(o => o.trim()) 
+  const whitelist = env.ALLOWED_ORIGINS
+    ? env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
     : [];
 
   app.use(
@@ -59,7 +60,7 @@ const securityMiddleware = (app) => {
       origin: function (origin, callback) {
         // Allow requests with no origin (like mobile apps or curl)
         if (!origin) return callback(null, true);
-        
+
         // Normalize origin (Remove trailing slashes)
         const normalizedOrigin = origin.replace(/\/$/, "");
         const isWhitelisted = whitelist.includes(normalizedOrigin) || whitelist.includes(origin);
@@ -79,20 +80,20 @@ const securityMiddleware = (app) => {
       },
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
       allowedHeaders: [
-        'Content-Type', 
-        'Authorization', 
+        'Content-Type',
+        'Authorization',
         'Accept',
         'Origin',
         'X-Requested-With',
-        'X-Request-ID', 
-        'X-Refresh-Token', 
-        'X-CSRF-Token', 
+        'X-Request-ID',
+        'X-Refresh-Token',
+        'X-CSRF-Token',
         'X-User-Agent',
         'X-App-Version',
         'X-Client-Platform'
       ],
       exposedHeaders: [
-        'Content-Range', 
+        'Content-Range',
         'X-Content-Range',
         'X-Request-ID',
         'X-CSRF-Token'
@@ -121,6 +122,31 @@ const securityMiddleware = (app) => {
   });
 
   app.use('/api', limiter);
+
+  // 6. Environment Enforcement Middleware
+  app.use(async (req, res, next) => {
+    try {
+      const isLive = await systemConfig.isLiveMode();
+      const isProdEnv = env.NODE_ENV === 'production';
+
+      // If appMode is 'Live', it MUST be in production environment
+      if (isLive && !isProdEnv) {
+        Logger.error(`🚫 ACCESS BLOCKED: SYSTEM IN LIVE MODE BUT RUNNING IN ${env.NODE_ENV.toUpperCase()} ENVIRONMENT`);
+
+        return next(new AppError(
+          'Service Unavailable: This application is in Live mode but running in a development environment. Please contact administrator.',
+          HTTP_STATUS.SERVICE_UNAVAILABLE,
+          'ENVIRONMENT_MISMATCH'
+        ));
+      }
+
+      // If in Dev mode, we allow both development and production environments
+      next();
+    } catch (error) {
+      Logger.error('Environment enforcement check failed:', error);
+      next(); // Fail open for safety or closed for security? Choosing open for now to avoid bricking.
+    }
+  });
 };
 
 export default securityMiddleware;

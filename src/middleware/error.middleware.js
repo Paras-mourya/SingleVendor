@@ -1,9 +1,10 @@
 import { HTTP_STATUS, ERROR_MESSAGES, ENV } from '../constants.js';
 import AppError from '../utils/AppError.js';
 import Logger from '../utils/logger.js';
+import systemConfig from '../utils/systemConfig.js';
 import * as Sentry from '@sentry/node';
 
-const errorHandler = (err, req, res, next) => {
+const errorHandler = async (err, req, res, next) => {
   let error = err;
 
   if (!(error instanceof AppError)) {
@@ -12,10 +13,18 @@ const errorHandler = (err, req, res, next) => {
     error = new AppError(message, statusCode, 'INTERNAL_ERROR', err?.errors || [], false, err.stack);
   }
 
+  const isDebug = await systemConfig.isDebugEnabled();
+
+  // Enterprise: Mask internal error messages in production if not in debug mode
+  let message = error.message;
+  if (!isDebug && !error.isOperational) {
+    message = ERROR_MESSAGES.INTERNAL_ERROR;
+  }
+
   const response = {
     ...error,
-    message: error.message,
-    ...(process.env.NODE_ENV === ENV.DEVELOPMENT ? { stack: error.stack } : {}),
+    message: message,
+    ...(isDebug ? { stack: error.stack } : {}),
   };
 
   // Enterprise: Log error with detailed context

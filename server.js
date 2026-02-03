@@ -22,6 +22,7 @@ import { responseHandler } from './src/middleware/response.middleware.js';
 import securityMiddleware from './src/middleware/security.middleware.js';
 import { errorHandler } from './src/middleware/error.middleware.js';
 import Logger from './src/utils/logger.js';
+import systemConfig from './src/utils/systemConfig.js';
 
 // Routes
 import v1Routes from './src/routes/v1.routes.js';
@@ -47,6 +48,19 @@ const CustomerEmailTemplateService = (await import('./src/services/customerEmail
 const PaymentGatewayService = (await import('./src/services/paymentGateway.service.js')).default;
 await CustomerEmailTemplateService.bootstrapTemplates();
 await PaymentGatewayService.bootstrapGateways();
+
+// System Mode Validation on Startup
+try {
+  const isLive = await systemConfig.isLiveMode();
+  if (isLive && env.NODE_ENV !== 'production') {
+    Logger.error(`
+      CRITICAL: System is set to LIVE MODE but running in ${env.NODE_ENV.toUpperCase()} environment.
+      All API requests will be blocked by security middleware until this is resolved.
+    `);
+  }
+} catch (err) {
+  Logger.error('Failed to validate system mode on startup', { error: err.message });
+}
 
 const app = express();
 
