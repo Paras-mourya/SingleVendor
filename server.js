@@ -40,9 +40,13 @@ try {
   Logger.error('Redis connection failed on startup', { error: err.message });
   // We don't exit(1) here if Redis is optional, but for enterprise we usually want it.
 }
-
-// Bootstrap Admin
+``
+// Bootstrap Admin & Templates
 await AdminService.bootstrapAdmin();
+const CustomerEmailTemplateService = (await import('./src/services/customerEmailTemplate.service.js')).default;
+const PaymentGatewayService = (await import('./src/services/paymentGateway.service.js')).default;
+await CustomerEmailTemplateService.bootstrapTemplates();
+await PaymentGatewayService.bootstrapGateways();
 
 const app = express();
 
@@ -51,11 +55,11 @@ const app = express();
 /**
  * PRODUCTION-GRADE MIDDLEWARE STACK
  */
-app.use(express.json({ limit: '10kb' })); 
+app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(cookieParser());
-app.use(compression()); 
-app.use(responseTime()); 
+app.use(compression());
+app.use(responseTime());
 
 // Global Identifiers & Context
 app.use(requestIdMiddleware);
@@ -111,17 +115,17 @@ const server = app.listen(PORT, () => {
  */
 const gracefulShutdown = (signal) => {
   Logger.warn(`RECEIVED ${signal}. Shutting down gracefully...`);
-  
+
   server.close(async () => {
     Logger.info('HTTP server closed.');
     try {
       const mongoose = (await import('mongoose')).default;
       await mongoose.connection.close();
       Logger.info('Database connection closed.');
-      
+
       await closeRedis();
       Logger.info('Redis connection closed.');
-      
+
       process.exit(0);
     } catch (err) {
       Logger.error('Error during shutdown', { error: err.message });

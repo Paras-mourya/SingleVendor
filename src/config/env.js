@@ -12,13 +12,16 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.string().default('5000').transform(Number),
   MONGODB_URI: z.string().url('MONGODB_URI must be a valid connection string'),
-  
+
   // JWT
   JWT_SECRET: z.string().min(32, 'JWT_SECRET should be at least 32 characters'),
   JWT_EXPIRE: z.string().default('7d'),
   JWT_REFRESH_SECRET: z.string().min(32),
   JWT_REFRESH_EXPIRE: z.string().default('30d'),
-  
+
+  // Encryption
+  ENCRYPTION_KEY: z.string().min(32, 'ENCRYPTION_KEY should be at least 32 characters for security').optional(),
+
   // Cloudinary
   CLOUD_NAME: z.string().min(1, 'CLOUD_NAME is required'),
   CLOUDINARY_API_KEY: z.string().min(1, 'CLOUDINARY_API_KEY is required'),

@@ -20,7 +20,8 @@ import employeeManagementRoutes from './employeeManagement.routes.js';
 import employeeAuthRoutes from './employeeAuth.routes.js';
 import adminEmailTemplateRoutes from './adminEmailTemplate.routes.js';
 import customerEmailTemplateRoutes from './customerEmailTemplate.routes.js';
-
+import paymentGatewayRoutes from './paymentGateway.routes.js';
+import paymentSettingRoutes from './paymentSetting.routes.js';
 const router = express.Router();
 
 /**
@@ -47,6 +48,8 @@ router.use('/admin/staff', employeeManagementRoutes);
 router.use('/employee/auth', employeeAuthRoutes);
 router.use('/admin/admin-template', adminEmailTemplateRoutes);
 router.use('/admin/customer-template', customerEmailTemplateRoutes);
+router.use('/payment-gateways', paymentGatewayRoutes);
+router.use('/payment-settings', paymentSettingRoutes);
 // Health check can also be versioned if needed, but usually kept root
 router.use('/health', healthRoutes);
 
