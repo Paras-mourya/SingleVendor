@@ -19,6 +19,7 @@ import socialMediaRoutes from './socialMedia.routes.js';
 import employeeManagementRoutes from './employeeManagement.routes.js';
 import employeeAuthRoutes from './employeeAuth.routes.js';
 import adminEmailTemplateRoutes from './adminEmailTemplate.routes.js';
+import customerEmailTemplateRoutes from './customerEmailTemplate.routes.js';
 
 const router = express.Router();
 
@@ -45,6 +46,7 @@ router.use('/social-media', socialMediaRoutes);
 router.use('/admin/staff', employeeManagementRoutes);
 router.use('/employee/auth', employeeAuthRoutes);
 router.use('/admin/admin-template', adminEmailTemplateRoutes);
+router.use('/admin/customer-template', customerEmailTemplateRoutes);
 // Health check can also be versioned if needed, but usually kept root
 router.use('/health', healthRoutes);
 
