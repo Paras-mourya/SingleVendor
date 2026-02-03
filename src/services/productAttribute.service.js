@@ -75,6 +75,8 @@ class ProductAttributeService {
     async invalidateCache() {
         await Cache.delByPattern(`${ATTRIBUTE_CACHE_KEY}*`);
         await Cache.delByPattern('response:/api/v1/product-attributes*');
+        // If an attribute changes, products that use them might need a refresh
+        await Cache.delByPattern('*product*');
     }
 }
 

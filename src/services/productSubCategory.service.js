@@ -16,7 +16,9 @@ class ProductSubCategoryService {
       await Cache.delByPattern(`${SUBCATEGORY_CACHE_PREFIX}*`);
     }
     await Cache.delByPattern(SUBCATEGORY_RESPONSE_PATTERN);
-    Logger.debug('Product SubCategory Cache Invalidated');
+    // Any sub-category change should refresh product listings
+    await Cache.delByPattern('*product*');
+    Logger.debug('Product SubCategory and Product Caches Invalidated');
   }
 
   async createSubCategory(data) {
@@ -66,7 +68,7 @@ class ProductSubCategoryService {
     if (updateData.category && updateData.category !== sub.category._id.toString()) {
       await this.invalidateCache(updateData.category);
     }
-    
+
     return updated;
   }
 

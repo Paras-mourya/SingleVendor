@@ -13,7 +13,9 @@ class ProductCategoryService {
   async invalidateCache() {
     await Cache.del(CATEGORY_CACHE_KEY);
     await Cache.delByPattern(CATEGORY_RESPONSE_PATTERN);
-    Logger.debug('Product Category Cache Invalidated');
+    // Any category change should also refresh product listings
+    await Cache.delByPattern('*product*');
+    Logger.debug('Product Category and Product Caches Invalidated');
   }
 
   async createCategory(data, file) {
@@ -49,11 +51,11 @@ class ProductCategoryService {
     }
 
     const categories = await ProductCategoryRepository.findAll(filter);
-    
+
     if (Object.keys(filter).length === 0) {
       await Cache.set(CATEGORY_CACHE_KEY, categories, 3600);
     }
-    
+
     return categories;
   }
 
@@ -97,7 +99,7 @@ class ProductCategoryService {
     // Also invalidate subcategory cache since they are deleted/linked
     await Cache.delByPattern('product:subcategories:*');
     await Cache.delByPattern('response:/api/v1/subcategories*');
-    
+
     return true;
   }
 }

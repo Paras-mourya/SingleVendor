@@ -1,0 +1,428 @@
+import ProductRepository from '../repositories/product.repository.js';
+import AppError from '../utils/AppError.js';
+import { HTTP_STATUS } from '../constants.js';
+import slugify from 'slugify';
+import Cache from '../utils/cache.js';
+import ExcelJS from 'exceljs';
+import mongoose from 'mongoose';
+import ProductCategoryRepository from '../repositories/productCategory.repository.js';
+import ProductSubCategoryRepository from '../repositories/productSubCategory.repository.js';
+import { parseProductExcel } from '../utils/excelParser.util.js';
+import { uploadImageFromUrl, uploadMultipleImagesFromUrls, deleteMultipleImages } from '../utils/imageUpload.util.js';
+import Logger from '../utils/logger.js';
+import { generateProductImportTemplate } from '../utils/excelTemplate.util.js';
+
+class ProductService {
+    async createProduct(data) {
+        // 1. Generate unique slug
+        let slug = slugify(data.name, { lower: true, strict: true });
+        const existingSlug = await ProductRepository.findOne({ slug });
+        if (existingSlug) {
+            slug = `${slug}-${Date.now()}`;
+        }
+        data.slug = slug;
+
+        // 2. Initial status check (User wants admin to toggle active later)
+        if (!data.status) data.status = 'inactive';
+        if (data.isActive === undefined) data.isActive = false;
+
+        const product = await ProductRepository.create(data);
+
+        // Invalidate product caches
+        await this.invalidateCache();
+
+        return product;
+    }
+
+    async getAllProducts(query) {
+        const {
+            page = 1,
+            limit = 10,
+            category,
+            status,
+            search,
+            minPrice,
+            maxPrice,
+            stockStatus, // 'in_stock', 'out_of_stock'
+            isFeatured // New filter
+        } = query;
+
+        const filter = {};
+        if (category) filter.category = category;
+        if (isFeatured !== undefined) filter.isFeatured = isFeatured === 'true' || isFeatured === true;
+        if (status) filter.status = status;
+
+        // Advanced Search (Name or SKU)
+        if (search) {
+            filter.$or = [
+                { name: { $regex: search, $options: 'i' } },
+                { sku: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        // Price Range Filtering
+        if (minPrice || maxPrice) {
+            filter.price = {};
+            if (minPrice) filter.price.$gte = Number(minPrice);
+            if (maxPrice) filter.price.$lte = Number(maxPrice);
+        }
+
+        // Stock Status Filtering
+        if (stockStatus === 'in_stock') {
+            filter.quantity = { $gt: 0 };
+        } else if (stockStatus === 'out_of_stock') {
+            filter.quantity = { $lte: 0 };
+        }
+
+        const products = await ProductRepository.findAll(filter, { createdAt: -1 }, parseInt(page), parseInt(limit));
+        const total = await ProductRepository.count(filter);
+
+        return {
+            products,
+            total,
+            page: parseInt(page),
+            limit: parseInt(limit),
+            totalPages: Math.ceil(total / limit)
+        };
+    }
+
+    async getPublicProductById(id) {
+        const product = await ProductRepository.findOne({ _id: id, status: 'active', isActive: true });
+        if (!product) {
+            throw new AppError('Product not found or unavailable', HTTP_STATUS.NOT_FOUND);
+        }
+        return product;
+    }
+
+    async getProductById(id) {
+        const product = await ProductRepository.findById(id);
+        if (!product) {
+            throw new AppError('Product not found', HTTP_STATUS.NOT_FOUND);
+        }
+        return product;
+    }
+
+    async updateProduct(id, data) {
+        const product = await ProductRepository.findById(id);
+        if (!product) {
+            throw new AppError('Product not found', HTTP_STATUS.NOT_FOUND);
+        }
+
+        const updated = await ProductRepository.update(id, data);
+        await this.invalidateCache();
+        return updated;
+    }
+
+    async deleteProduct(id) {
+        const product = await ProductRepository.findById(id);
+        if (!product) {
+            throw new AppError('Product not found', HTTP_STATUS.NOT_FOUND);
+        }
+
+        await ProductRepository.delete(id);
+        await this.invalidateCache();
+        return true;
+    }
+
+    async toggleStatus(id, { status, isActive }) {
+        const product = await ProductRepository.findById(id);
+        if (!product) {
+            throw new AppError('Product not found', HTTP_STATUS.NOT_FOUND);
+        }
+
+        const updateData = {};
+        if (status) updateData.status = status;
+        if (isActive !== undefined) updateData.isActive = isActive;
+
+        const updated = await ProductRepository.update(id, updateData);
+        await this.invalidateCache();
+        return updated;
+    }
+
+    async toggleFeatured(id) {
+        const product = await ProductRepository.findById(id);
+        if (!product) {
+            throw new AppError('Product not found', HTTP_STATUS.NOT_FOUND);
+        }
+
+        const updated = await ProductRepository.update(id, { isFeatured: !product.isFeatured });
+        await this.invalidateCache();
+        return updated;
+    }
+
+    /**
+     * Dedicated method for Homepage Featured Section
+     */
+    async getFeaturedProducts(limit = 8) {
+        const cacheKey = `public_products:featured:${limit}`;
+        const cached = await Cache.get(cacheKey);
+        if (cached) return cached;
+
+        const filter = { isFeatured: true, status: 'active', isActive: true };
+        const products = await ProductRepository.findActive(filter, { createdAt: -1 }, 1, parseInt(limit));
+
+        await Cache.set(cacheKey, products, 600);
+        return products;
+    }
+
+    async getPublicProducts(query) {
+        const {
+            page = 1,
+            limit = 12,
+            category,
+            search,
+            minPrice,
+            maxPrice,
+            sort,
+            stockStatus
+        } = query;
+
+        // Try Cache First
+        const cacheKey = `public_products:${JSON.stringify(query)}`;
+        const cached = await Cache.get(cacheKey);
+        if (cached) return cached;
+
+        const filter = {};
+        if (category) filter.category = category;
+        if (search) {
+            filter.$text = { $search: search };
+        }
+        if (minPrice || maxPrice) {
+            filter.price = {};
+            if (minPrice) filter.price.$gte = Number(minPrice);
+            if (maxPrice) filter.price.$lte = Number(maxPrice);
+        }
+
+        if (stockStatus === 'in_stock') {
+            filter.quantity = { $gt: 0 };
+        }
+
+        let sortOption = { createdAt: -1 };
+        if (sort === 'price_asc') sortOption = { price: 1 };
+        if (sort === 'price_desc') sortOption = { price: -1 };
+        if (sort === 'newest') sortOption = { createdAt: -1 };
+
+        const products = await ProductRepository.findActive(filter, sortOption, parseInt(page), parseInt(limit));
+        const total = await ProductRepository.count({ ...filter, status: 'active', isActive: true });
+
+        const result = {
+            products,
+            total,
+            page: parseInt(page),
+            limit: parseInt(limit),
+            totalPages: Math.ceil(total / limit)
+        };
+
+        // Cache for 5 minutes
+        await Cache.set(cacheKey, result, 300);
+
+        return result;
+    }
+
+    /**
+     * Generate Excel Template for Bulk Product Import
+     */
+    async generateImportTemplate() {
+        return await generateProductImportTemplate();
+    }
+
+    /**
+     * @desc    Bulk Import Products from Excel
+     */
+    async bulkImportProducts(excelBuffer) {
+        const parseResult = await parseProductExcel(excelBuffer);
+
+        if (!parseResult.success && parseResult.errors.length > 0) {
+            return {
+                success: false,
+                created: 0,
+                failed: parseResult.errors.length,
+                errors: parseResult.errors,
+                message: parseResult.message
+            };
+        }
+
+        const products = parseResult.products;
+        const session = await mongoose.startSession();
+        session.startTransaction();
+
+        const createdProducts = [];
+        const uploadedImages = [];
+        const errors = [];
+
+        try {
+            for (let i = 0; i < products.length; i++) {
+                const productData = products[i];
+                const rowIndex = i + 3; // Starting after header and desc
+
+                try {
+                    // 1. Validate Category
+                    const category = await ProductCategoryRepository.findByName(productData.categoryName);
+                    if (!category) throw new Error(`Category '${productData.categoryName}' not found`);
+                    productData.category = category._id;
+
+                    // 2. Validate SubCategory
+                    if (productData.subCategoryName) {
+                        const subCat = await ProductSubCategoryRepository.findByNameAndCategory(productData.subCategoryName, category._id);
+                        if (subCat) productData.subCategory = subCat._id;
+                    }
+
+                    // 3. Unique SKU Check
+                    const existingSku = await ProductRepository.findOne({ sku: productData.sku });
+                    if (existingSku) throw new Error(`SKU '${productData.sku}' already exists`);
+
+                    // 4. Handle Images
+                    const imageFolder = `products/bulk-import`;
+                    if (productData._thumbnailUrl) {
+                        const thumb = await uploadImageFromUrl(productData._thumbnailUrl, imageFolder);
+                        productData.thumbnail = thumb;
+                        uploadedImages.push(thumb.publicId);
+                    }
+
+                    if (productData._imageUrls && productData._imageUrls.length > 0) {
+                        const images = await uploadMultipleImagesFromUrls(productData._imageUrls, imageFolder);
+                        productData.images = images;
+                        uploadedImages.push(...images.map(img => img.publicId));
+                        if (!productData.thumbnail) productData.thumbnail = images[0];
+                    }
+
+                    // 5. Default Overrides for Admin Import
+                    productData.status = 'active';
+                    productData.isActive = false;
+
+                    const product = await ProductRepository.create(productData);
+                    createdProducts.push(product);
+
+                } catch (error) {
+                    errors.push({ row: rowIndex, sku: productData.sku, error: error.message });
+                    throw error; // Rollback
+                }
+            }
+
+            await session.commitTransaction();
+            await this.invalidateCache();
+            return { success: true, created: createdProducts.length, failed: 0 };
+
+        } catch (error) {
+            await session.abortTransaction();
+            if (uploadedImages.length > 0) await deleteMultipleImages(uploadedImages);
+            return {
+                success: false,
+                created: 0,
+                failed: products.length,
+                errors: errors.length > 0 ? errors : [{ error: error.message }],
+                message: 'Bulk import failed. Rolling back.'
+            };
+        } finally {
+            session.endSession();
+        }
+    }
+
+    /**
+     * @desc    Get Low Stock Products for Admin
+     */
+    async getLowStockProducts(query) {
+        const {
+            page = 1,
+            limit = 10,
+            threshold = 10,
+            category,
+            search,
+            stockSort // 'asc' or 'desc'
+        } = query;
+
+        const filter = {};
+        if (category) filter.category = category;
+        if (search) {
+            filter.$or = [
+                { name: { $regex: search, $options: 'i' } },
+                { sku: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        let sortOption = { quantity: 1 }; // Default: Low to High
+        if (stockSort === 'desc') sortOption = { quantity: -1 };
+
+        const products = await ProductRepository.findLowStock(Number(threshold), filter, sortOption, parseInt(page), parseInt(limit));
+        const total = await ProductRepository.count({ ...filter, quantity: { $lte: Number(threshold) } });
+
+        return {
+            products,
+            total,
+            page: parseInt(page),
+            limit: parseInt(limit),
+            totalPages: Math.ceil(total / limit)
+        };
+    }
+
+    /**
+     * @desc    Restock Product (Atomic)
+     */
+    async restockProduct(id, quantity) {
+        const product = await ProductRepository.incrementStock(id, quantity);
+        if (!product) {
+            throw new AppError('Product not found', HTTP_STATUS.NOT_FOUND);
+        }
+        await this.invalidateCache();
+        return product;
+    }
+
+    /**
+     * @desc    Optimized Search for Public Search Bar
+     */
+    async searchProducts(query, page = 1, limit = 12) {
+        if (!query) return { products: [], total: 0 };
+
+        const cacheKey = `search:${query}:${page}:${limit}`;
+        const cached = await Cache.get(cacheKey);
+        if (cached) return cached;
+
+        const products = await ProductRepository.searchText(query, parseInt(page), parseInt(limit));
+        const total = await ProductRepository.count({
+            $text: { $search: query },
+            status: 'active',
+            isActive: true
+        });
+
+        const result = {
+            products,
+            total,
+            page: parseInt(page),
+            limit: parseInt(limit),
+            totalPages: Math.ceil(total / limit)
+        };
+
+        // Cache search results for 10 minutes
+        await Cache.set(cacheKey, result, 600);
+        return result;
+    }
+
+    /**
+     * @desc    Get Similar Products by Tags
+     */
+    async getSimilarProducts(productId, limit = 4) {
+        const product = await ProductRepository.findById(productId);
+        if (!product) {
+            throw new AppError('Product not found', HTTP_STATUS.NOT_FOUND);
+        }
+
+        const cacheKey = `similar:${productId}:${limit}`;
+        const cached = await Cache.get(cacheKey);
+        if (cached) return cached;
+
+        const products = await ProductRepository.findSimilarByTags(product.searchTags, productId, limit);
+
+        // Cache similar products for 30 minutes
+        await Cache.set(cacheKey, products, 1800);
+        return products;
+    }
+
+    async invalidateCache() {
+        // Pattern based invalidation for service-level and middleware-level cache
+        await Cache.delByPattern('*product*');
+        await Cache.delByPattern('response:/api/v1/products*');
+        Logger.info('Product cache cleared globally');
+    }
+}
+
+export default new ProductService();
