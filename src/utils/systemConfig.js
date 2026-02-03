@@ -1,5 +1,6 @@
 import SystemSettingRepository from '../repositories/systemSetting.repository.js';
 import Logger from './logger.js';
+import env from '../config/env.js';
 
 /**
  * Enterprise System Configuration Utility
@@ -68,6 +69,33 @@ class SystemConfig {
     async isLiveMode() {
         const settings = await this.getSettings();
         return settings.appMode === 'Live';
+    }
+
+    /**
+     * Get Dynamic Application URL based on request origin
+     * Supports both localhost and production transparently.
+     * @param {Object} req - Express Request Object
+     */
+    async getDynamicAppUrl(req) {
+        // 1. Get origin from request headers
+        const origin = req.headers.origin;
+
+        // 2. Fetch configured origins from environment
+        const allowedOrigins = env.ALLOWED_ORIGINS
+            ? env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+            : [];
+
+        // 3. If origin exists and is whitelisted, use it as the dynamic URL
+        if (origin) {
+            const normalizedOrigin = origin.replace(/\/$/, "");
+            if (allowedOrigins.includes(normalizedOrigin) || allowedOrigins.includes(origin)) {
+                return normalizedOrigin;
+            }
+        }
+
+        // 4. Default: Fallback to the appUrl stored in system settings (database)
+        const settings = await this.getSettings();
+        return settings.appUrl;
     }
 }
 

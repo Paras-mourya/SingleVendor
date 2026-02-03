@@ -18,7 +18,7 @@ const systemSettingSchema = new mongoose.Schema(
             type: String,
             enum: ['Live', 'Dev', 'Maintenance'],
             required: true,
-            default: 'Live',
+            default: 'Dev',
         },
         appUrl: {
             type: String,

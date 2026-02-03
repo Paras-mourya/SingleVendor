@@ -130,7 +130,10 @@ const securityMiddleware = (app) => {
       const isProdEnv = env.NODE_ENV === 'production';
 
       // If appMode is 'Live', it MUST be in production environment
-      if (isLive && !isProdEnv) {
+      // EXCEPTION: Allow access to system-settings so admin can fix the mode if locked out
+      const isSystemSettingRoute = req.originalUrl.includes('/system-settings');
+
+      if (isLive && !isProdEnv && !isSystemSettingRoute) {
         Logger.error(`🚫 ACCESS BLOCKED: SYSTEM IN LIVE MODE BUT RUNNING IN ${env.NODE_ENV.toUpperCase()} ENVIRONMENT`);
 
         return next(new AppError(

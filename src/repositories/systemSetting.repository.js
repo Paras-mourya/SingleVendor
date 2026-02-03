@@ -1,6 +1,7 @@
 import SystemSetting from '../models/systemSetting.model.js';
 import Cache from '../utils/cache.js';
 import Logger from '../utils/logger.js';
+import env from '../config/env.js';
 
 class SystemSettingRepository {
     constructor() {
@@ -26,8 +27,8 @@ class SystemSettingRepository {
             settings = await SystemSetting.create({
                 appName: 'Multi Vendor App',
                 appDebug: true,
-                appMode: 'Live',
-                appUrl: 'http://localhost:3000'
+                appMode: 'Dev',
+                appUrl: env.APP_URL
             });
             Logger.info('Initialized Default System Settings');
         }
