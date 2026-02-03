@@ -22,6 +22,8 @@ import adminEmailTemplateRoutes from './adminEmailTemplate.routes.js';
 import customerEmailTemplateRoutes from './customerEmailTemplate.routes.js';
 import paymentGatewayRoutes from './paymentGateway.routes.js';
 import paymentSettingRoutes from './paymentSetting.routes.js';
+import socialMediaChatRoutes from './socialMediaChat.routes.js';
+import smsGatewayRoutes from './smsGateway.routes.js';
 const router = express.Router();
 
 /**
@@ -50,6 +52,8 @@ router.use('/admin/admin-template', adminEmailTemplateRoutes);
 router.use('/admin/customer-template', customerEmailTemplateRoutes);
 router.use('/payment-gateways', paymentGatewayRoutes);
 router.use('/payment-settings', paymentSettingRoutes);
+router.use('/social-media-chat', socialMediaChatRoutes);
+router.use('/sms-gateways', smsGatewayRoutes);
 // Health check can also be versioned if needed, but usually kept root
 router.use('/health', healthRoutes);
 
