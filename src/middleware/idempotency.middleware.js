@@ -45,7 +45,21 @@ const lockRequest = (ttl = 5) => {
       // Implementation: We use a simple value '1' to indicate locked
       await Cache.set(lockKey, 'locked', ttl);
 
-      // 4. Proceed to next
+      // 4. Auto-cleanup lock after response completes (success or error)
+      const cleanupLock = async () => {
+        try {
+          await Cache.del(lockKey);
+          Logger.debug(`Lock released: ${lockKey}`);
+        } catch (err) {
+          Logger.error('Lock cleanup failed', { error: err.message });
+        }
+      };
+
+      // Listen for response completion
+      res.on('finish', cleanupLock);
+      res.on('close', cleanupLock);
+
+      // 5. Proceed to next
       next();
     } catch (error) {
       Logger.error('Idempotency Middleware Error', { error: error.message });
