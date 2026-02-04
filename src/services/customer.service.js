@@ -9,7 +9,7 @@ import AuditLogger from '../utils/audit.js';
 import TransactionManager from '../utils/transaction.js';
 import Logger from '../utils/logger.js';
 import LoginSettingRepository from '../repositories/loginSetting.repository.js';
-import CartService from './cart.service.js';
+// import CartService from './cart.service.js';
 
 class CustomerService {
     /**
@@ -237,6 +237,7 @@ class CustomerService {
         const updatedCustomer = await Customer.findById(customer._id);
 
         // 4. Merge guest cart if guestId provided
+        /*
         if (guestId) {
             try {
                 await CartService.mergeGuestCart(guestId, updatedCustomer._id);
@@ -250,6 +251,7 @@ class CustomerService {
                 // Don't fail login if cart merge fails
             }
         }
+        */
 
         AuditLogger.log('CUSTOMER_LOGIN', 'CUSTOMER', { customerId: customer._id });
 
