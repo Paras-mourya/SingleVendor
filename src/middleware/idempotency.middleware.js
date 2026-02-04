@@ -23,19 +23,19 @@ const lockRequest = (ttl = 5) => {
       .createHash('md5')
       .update(JSON.stringify(req.body || {}))
       .digest('hex');
-    
+
     const lockKey = `lock:${userId}:${req.originalUrl}:${bodyHash}`;
 
     try {
       // 2. Check if lock exists in Redis
       const isLocked = await Cache.get(lockKey);
-      
+
       if (isLocked) {
         Logger.warn(`Double-hit prevented: ${lockKey}`);
         return res.status(HTTP_STATUS.TOO_MANY_REQUESTS).json(
           new ApiResponse(
-            HTTP_STATUS.TOO_MANY_REQUESTS, 
-            null, 
+            HTTP_STATUS.TOO_MANY_REQUESTS,
+            null,
             'Request is already being processed. Please wait a moment.'
           )
         );
@@ -44,7 +44,7 @@ const lockRequest = (ttl = 5) => {
       // 3. Set lock for TTL (seconds)
       // Implementation: We use a simple value '1' to indicate locked
       await Cache.set(lockKey, 'locked', ttl);
-      
+
       // 4. Proceed to next
       next();
     } catch (error) {
@@ -54,4 +54,5 @@ const lockRequest = (ttl = 5) => {
   };
 };
 
+export { lockRequest };
 export default lockRequest;
