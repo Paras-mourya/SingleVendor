@@ -40,13 +40,17 @@ const adminSchema = new mongoose.Schema(
       default: 0,
     },
     resetPasswordLockout: Date,
-    
+
     // Login Security
     loginAttempts: {
       type: Number,
       default: 0,
     },
     lockoutUntil: Date,
+    tokenVersion: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,

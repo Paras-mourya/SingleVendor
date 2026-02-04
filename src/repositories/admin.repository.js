@@ -15,29 +15,37 @@ class AdminRepository {
     if (selectPassword) {
       query.select('+password');
     }
-    return await query;
+    return await query.lean();
   }
 
-  async findById(id) {
+  async findById(id, selectFields = '') {
     const cacheKey = `${ADMIN_CACHE_PREFIX}${id}`;
-    
+
     // 1. Try cache
     const cachedAdmin = await Cache.get(cacheKey);
     if (cachedAdmin) return cachedAdmin;
 
     // 2. Fetch from DB
-    const admin = await Admin.findById(id);
-    
+    const query = Admin.findById(id).lean();
+    if (selectFields) {
+      query.select(selectFields);
+    }
+    const admin = await query;
+
     // 3. Store in cache (expire in 1 hour)
     if (admin) {
       await Cache.set(cacheKey, admin, 3600);
     }
-    
+
     return admin;
   }
 
   async updateById(id, updateData) {
-    return await Admin.findByIdAndUpdate(id, updateData, { new: true });
+    return await Admin.findByIdAndUpdate(id, updateData, { new: true, runValidators: true }).lean();
+  }
+
+  async getByIdFull(id) {
+    return await Admin.findById(id);
   }
 
   async count() {

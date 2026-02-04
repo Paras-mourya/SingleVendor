@@ -16,7 +16,7 @@ class AdminController {
     // 1. Refresh Token Cookie (Long Lived - The "Remember Me" part)
     // 30 days vs 1 day
     const refreshExpires = new Date(Date.now() + (rememberMe ? 30 : 1) * 24 * 60 * 60 * 1000);
-    
+
     res.cookie('adminRefreshToken', result.tokens.refreshToken, {
       expires: refreshExpires,
       httpOnly: true,
@@ -29,7 +29,7 @@ class AdminController {
     // If env is 7d, we can match it.
     // But for proper refresh flow, access token should be shorter.
     // We will set it to match JWT_EXPIRE or standard 1 day for now to avoid breaking existing logic too much.
-    
+
     res.cookie('adminAccessToken', result.tokens.accessToken, {
       expires: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), // 1 day
       httpOnly: true,
@@ -48,9 +48,9 @@ class AdminController {
   refreshToken = async (req, res) => {
     // Get Refresh Token from Cookie (Secure) or Body (Fallback)
     const token = req.cookies?.adminRefreshToken || req.body.refreshToken;
-    
+
     const result = await AdminService.refreshToken(token);
-    
+
     // Set new Access Token Cookie
     res.cookie('adminAccessToken', result.accessToken, {
       expires: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), // 1 day
@@ -68,11 +68,16 @@ class AdminController {
    * @access  Private (Admin)
    */
   logout = async (req, res) => {
+    // Revoke session on server
+    await AdminService.logout(req.admin._id);
+
     const options = {
       expires: new Date(Date.now() + 10 * 1000),
       httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
     };
-    
+
     res.cookie('adminAccessToken', 'none', options);
     res.cookie('adminRefreshToken', 'none', options);
 

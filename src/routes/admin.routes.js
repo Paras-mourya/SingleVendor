@@ -7,6 +7,7 @@ import { z } from 'zod';
 
 import uploadMiddleware from '../middleware/upload.middleware.js';
 import cacheMiddleware from '../middleware/cache.middleware.js';
+import { lockRequest } from '../middleware/idempotency.middleware.js';
 
 const router = express.Router();
 
@@ -77,11 +78,11 @@ const authLimiter = rateLimit({
   }
 });
 
-router.post('/login', authLimiter, validate(loginSchema), AdminController.login);
+router.post('/login', authLimiter, lockRequest('admin-login'), validate(loginSchema), AdminController.login);
 router.post('/refresh-token', AdminController.refreshToken); // New Route
-router.post('/forgot-password', authLimiter, validate(forgotPasswordSchema), AdminController.forgotPassword);
+router.post('/forgot-password', authLimiter, lockRequest('admin-forgot-password'), validate(forgotPasswordSchema), AdminController.forgotPassword);
 router.post('/verify-otp', authLimiter, validate(verifyOtpSchema), AdminController.verifyOtp);
-router.post('/reset-password', authLimiter, validate(resetPasswordSchema), AdminController.resetPassword);
+router.post('/reset-password', authLimiter, lockRequest('admin-reset-password'), validate(resetPasswordSchema), AdminController.resetPassword);
 
 // Protected routes
 router.use(adminProtect);
