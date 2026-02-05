@@ -71,10 +71,10 @@ cartSchema.index({ guestId: 1, 'items.product': 1 });
 cartSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 // Validation and Expiry Logic
-cartSchema.pre('save', function (next) {
+cartSchema.pre('save', async function () {
     // 1. Either customerId OR guestId must be present
     if (!this.customerId && !this.guestId) {
-        return next(new Error('Either customerId or guestId must be provided'));
+        throw new Error('Either customerId or guestId must be provided');
     }
 
     // 2. Prevent having both (though guestId is cleared on login merge)
@@ -89,8 +89,6 @@ cartSchema.pre('save', function (next) {
 
     // 4. Recalculate total price
     this.totalPrice = this.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
-    next();
 });
 
 // Virtual for total items count

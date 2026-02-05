@@ -8,9 +8,16 @@ const errorHandler = async (err, req, res, next) => {
   let error = err;
 
   if (!(error instanceof AppError)) {
-    const statusCode = error.statusCode || (error.name === 'ValidationError' ? HTTP_STATUS.BAD_REQUEST : HTTP_STATUS.INTERNAL_SERVER_ERROR);
-    const message = error.message || ERROR_MESSAGES.INTERNAL_ERROR;
-    error = new AppError(message, statusCode, 'INTERNAL_ERROR', err?.errors || [], false, err.stack);
+    // Handle Mongoose Duplicate Key Error (E11000)
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyValue)[0];
+      const message = `Duplicate field value: ${field}. Please use another value!`;
+      error = new AppError(message, HTTP_STATUS.CONFLICT, 'DUPLICATE_KEY_ERROR', [], true);
+    } else {
+      const statusCode = error.statusCode || (error.name === 'ValidationError' ? HTTP_STATUS.BAD_REQUEST : HTTP_STATUS.INTERNAL_SERVER_ERROR);
+      const message = error.message || ERROR_MESSAGES.INTERNAL_ERROR;
+      error = new AppError(message, statusCode, 'INTERNAL_ERROR', err?.errors || [], false, err.stack);
+    }
   }
 
   const isDebug = await systemConfig.isDebugEnabled();

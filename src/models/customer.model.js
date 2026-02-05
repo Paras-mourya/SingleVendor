@@ -94,9 +94,9 @@ const customerSchema = new mongoose.Schema(
 );
 
 // Encrypt password using Argon2 (assuming security.js uses it)
-customerSchema.pre('save', async function (next) {
+customerSchema.pre('save', async function () {
     if (!this.isModified('password')) {
-        return next();
+        return;
     }
     this.password = await hashPassword(this.password);
 });

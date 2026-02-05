@@ -59,11 +59,10 @@ const blogSchema = new mongoose.Schema(
 );
 
 // Slug generation hook
-blogSchema.pre('save', function (next) {
+blogSchema.pre('save', async function () {
   if (this.isModified('title') || !this.slug) {
     this.slug = slugify(this.title, { lower: true, strict: true });
   }
-  next();
 });
 
 // Indexes
