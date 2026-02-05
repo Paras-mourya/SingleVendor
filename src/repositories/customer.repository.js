@@ -37,16 +37,24 @@ class CustomerRepository {
         return await Customer.findByIdAndUpdate(id, updateData, options);
     }
 
-    async findOne(filter, selectFields = '', lean = false) {
-        Logger.debug('DB: Finding customer with filter', { filter });
-        const query = Customer.findOne(filter);
+    async findAll(filter = {}, sort = { createdAt: -1 }, page = 1, limit = 10, selectFields = '') {
+        Logger.debug('DB: Finding all customers', { filter, sort, page, limit });
+        const skip = (page - 1) * limit;
+        const query = Customer.find(filter)
+            .sort(sort)
+            .skip(skip)
+            .limit(limit);
+
         if (selectFields) {
             query.select(selectFields);
         }
-        if (lean) {
-            query.lean();
-        }
-        return await query;
+
+        return await query.lean();
+    }
+
+    async count(filter = {}) {
+        Logger.debug('DB: Counting customers', { filter });
+        return await Customer.countDocuments(filter);
     }
 }
 

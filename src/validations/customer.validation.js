@@ -72,6 +72,24 @@ const updateProfile = z.object({
     }),
 });
 
+const adminUpdateStatus = z.object({
+    params: z.object({
+        id: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid ID format'),
+    }),
+    body: z.object({
+        isActive: z.boolean({ required_error: 'isActive status is required' }),
+    }),
+});
+
+const adminGetCustomers = z.object({
+    query: z.object({
+        page: z.string().optional().transform(val => (val ? parseInt(val) : 1)),
+        limit: z.string().optional().transform(val => (val ? parseInt(val) : 10)),
+        search: z.string().optional(),
+        status: z.enum(['active', 'blocked', '']).optional(),
+    }),
+});
+
 export default {
     signup,
     verifyOtp,
@@ -81,4 +99,6 @@ export default {
     verifyResetOtp,
     resetPassword,
     updateProfile,
+    adminUpdateStatus,
+    adminGetCustomers,
 };

@@ -515,28 +515,22 @@ class CustomerService {
      * Get All Customers (for Admin)
      */
     async getAllCustomers(page = 1, limit = 10, search = '', status) {
-        const skip = (page - 1) * limit;
-        const query = {};
+        const filter = {};
 
         if (search) {
-            query.$or = [
+            filter.$or = [
                 { name: { $regex: search, $options: 'i' } },
                 { email: { $regex: search, $options: 'i' } },
                 { phoneNumber: { $regex: search, $options: 'i' } },
             ];
         }
 
-        if (status !== undefined) {
-            query.isActive = status === 'active';
+        if (status !== undefined && status !== '') {
+            filter.isActive = status === 'active';
         }
 
-        const customers = await Customer.find(query)
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(limit)
-            .lean();
-
-        const total = await Customer.countDocuments(query);
+        const customers = await CustomerRepository.findAll(filter, { createdAt: -1 }, page, limit);
+        const total = await CustomerRepository.count(filter);
 
         return {
             customers,
@@ -544,6 +538,13 @@ class CustomerService {
             page,
             pages: Math.ceil(total / limit),
         };
+    }
+
+    /**
+     * Get Customers for Export (Admin)
+     */
+    async getCustomersForExport(filter = {}) {
+        return await CustomerRepository.findAll(filter, { createdAt: -1 }, 1, 10000); // High limit for export
     }
 
     generateTokens(customer) {
