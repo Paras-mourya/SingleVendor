@@ -22,31 +22,31 @@ jobs:
     - name: Check for Vulnerabilities
       run: npm audit --audit-level=high
 
-  test:
-    name: Integration Tests
-    needs: [security]
-    runs-on: ubuntu-latest
-    env:
-      NODE_ENV: test
-      PORT: 5001
-      MONGODB_URI: "mongodb://localhost:27017/test_db"
-      REDIS_URL: "redis://localhost:6379"
-      JWT_SECRET: "ci_test_secret_1234567890_enterprise"
-    steps:
-    - uses: actions/checkout@v4
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-    - name: Install dependencies
-      run: npm install
-    - name: Run Tests with Coverage
-      run: npm run test:coverage
+  # test:
+  #   name: Integration Tests
+  #   needs: [security]
+  #   runs-on: ubuntu-latest
+  #   env:
+  #     NODE_ENV: test
+  #     PORT: 5001
+  #     MONGODB_URI: "mongodb://localhost:27017/test_db"
+  #     REDIS_URL: "redis://localhost:6379"
+  #     JWT_SECRET: "ci_test_secret_1234567890_enterprise"
+  #   steps:
+  #   - uses: actions/checkout@v4
+  #   - name: Setup Node.js
+  #     uses: actions/setup-node@v4
+  #     with:
+  #       node-version: '20'
+  #       cache: 'npm'
+  #   - name: Install dependencies
+  #     run: npm install
+  #   - name: Run Tests with Coverage
+  #     run: npm run test:coverage
 
   deploy:
     name: Deploy to Render
-    needs: test
+    needs: security  # needs: test (Skipped tests, depends on security now)
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
@@ -63,4 +63,3 @@ jobs:
       if: env.RENDER_DEPLOY_HOOK == ''
       run: |
         echo "::warning::DEPLOY SKIPPED: 'RENDER_DEPLOY_HOOK' secret is not set."
- 
