@@ -1,33 +1,10 @@
-import express from 'express';
-import cookieParser from 'cookie-parser';
-import compression from 'compression';
-import responseTime from 'response-time';
-
-// 1. Load and Validate Env (Fail-Fast)
+import app from './src/app.js';
 import env from './src/config/env.js';
-
-// 2. Monitoring (Sentry must be first)
-import Sentry, { setupExpressErrorHandler } from './instrument.js';
-
-// Configs
+import Logger from './src/utils/logger.js';
 import connectDB from './src/config/db.js';
 import redisClient, { closeRedis } from './src/config/redis.js';
-import { setupSwagger } from './src/config/swagger.js';
-
-// Middlewares
-import { requestIdMiddleware } from './src/middleware/requestId.js';
-import { contextMiddleware } from './src/middleware/context.middleware.js';
-import { requestLogger } from './src/middleware/requestLogger.js';
-import { responseHandler } from './src/middleware/response.middleware.js';
-import securityMiddleware from './src/middleware/security.middleware.js';
-import { errorHandler } from './src/middleware/error.middleware.js';
-import Logger from './src/utils/logger.js';
-import systemConfig from './src/utils/systemConfig.js';
-
-// Routes
-import v1Routes from './src/routes/v1.routes.js';
-import healthRoutes from './src/routes/health.routes.js';
 import AdminService from './src/services/admin.service.js';
+import systemConfig from './src/utils/systemConfig.js';
 
 // Connect to database
 console.log('Connecting to database...');
@@ -43,7 +20,6 @@ try {
   }
 } catch (err) {
   Logger.error('Redis connection failed on startup', { error: err.message });
-  // We don't exit(1) here if Redis is optional, but for enterprise we usually want it.
 }
 
 // Bootstrap Admin & Templates (Skip in test mode for faster/isolated testing)
@@ -70,71 +46,12 @@ if (process.env.NODE_ENV !== 'test') {
   Logger.info('Test environment detected, skipping service bootstrapping');
 }
 
-const app = express();
-
-// Enable trust proxy for express-rate-limit (Render usage)
-app.set('trust proxy', 1);
-
-// 1. Elite Security Stack (Must be first to handle CORS preflights)
-securityMiddleware(app);
-
-/**
- * PRODUCTION-GRADE MIDDLEWARE STACK
- */
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: true, limit: '10kb' }));
-app.use(cookieParser());
-app.use(compression());
-app.use(responseTime());
-
-// Global Identifiers & Context
-app.use(requestIdMiddleware);
-app.use(contextMiddleware);
-app.use(requestLogger);
-
-// Global Response Formatter (Senior/Principal Pattern)
-app.use(responseHandler);
-
-// Documentation
-setupSwagger(app);
-
-/**
- * ROUTE REGISTRATION (Versioned)
- */
-app.use('/health', healthRoutes); // Health is usually top-level
-app.use('/api/v1', v1Routes);
-
-// Root Endpoint
-app.get('/', (req, res) => {
-  res.json({
-    message: 'Single Vendor Backend API',
-    status: 'ONLINE',
-    version: '1.0.0',
-    docs: '/api-docs'
-  });
-});
-
-// 404 Handler
-app.use((req, res) => {
-  res.status(404).json({
-    message: `Cannot find ${req.originalUrl} on this server!`
-  });
-});
-
-/**
- * PRODUCTION-GRADE ERROR HANDLING
- */
-if (setupExpressErrorHandler) setupExpressErrorHandler(app);
-app.use(errorHandler);
-
 const PORT = env.PORT || 5000;
 
 let server;
-if (process.env.NODE_ENV !== 'test') {
-  server = app.listen(PORT, () => {
-    Logger.info(`🚀 Server running in ${env.NODE_ENV} mode on port ${PORT}`);
-  });
-}
+server = app.listen(PORT, () => {
+  Logger.info(`🚀 Server running in ${env.NODE_ENV} mode on port ${PORT}`);
+});
 
 /**
  * GRACEFUL SHUTDOWN
@@ -142,22 +59,26 @@ if (process.env.NODE_ENV !== 'test') {
 const gracefulShutdown = (signal) => {
   Logger.warn(`RECEIVED ${signal}. Shutting down gracefully...`);
 
-  server.close(async () => {
-    Logger.info('HTTP server closed.');
-    try {
-      const mongoose = (await import('mongoose')).default;
-      await mongoose.connection.close();
-      Logger.info('Database connection closed.');
+  if (server) {
+    server.close(async () => {
+      Logger.info('HTTP server closed.');
+      try {
+        const mongoose = (await import('mongoose')).default;
+        await mongoose.connection.close();
+        Logger.info('Database connection closed.');
 
-      await closeRedis();
-      Logger.info('Redis connection closed.');
+        await closeRedis();
+        Logger.info('Redis connection closed.');
 
-      process.exit(0);
-    } catch (err) {
-      Logger.error('Error during shutdown', { error: err.message });
-      process.exit(1);
-    }
-  });
+        process.exit(0);
+      } catch (err) {
+        Logger.error('Error during shutdown', { error: err.message });
+        process.exit(1);
+      }
+    });
+  } else {
+    process.exit(0);
+  }
 
   setTimeout(() => {
     Logger.error('Could not close connections in time, forcefully shutting down');
