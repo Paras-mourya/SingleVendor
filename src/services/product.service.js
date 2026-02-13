@@ -12,6 +12,7 @@ import { uploadImageFromUrl, uploadMultipleImagesFromUrls, deleteMultipleImages 
 import Logger from '../utils/logger.js';
 import { generateProductImportTemplate } from '../utils/excelTemplate.util.js';
 import FlashDealService from './flashDeal.service.js';
+import { productQueue } from '../config/queue.js';
 
 class ProductService {
   async createProduct(data) {
@@ -37,15 +38,15 @@ class ProductService {
 
   async getAllProducts(query) {
     const {
-      page = 1,
       limit = 10,
+      cursor = null,
       category,
       status,
       search,
       minPrice,
       maxPrice,
-      stockStatus, // 'in_stock', 'out_of_stock'
-      isFeatured // New filter
+      stockStatus,
+      isFeatured
     } = query;
 
     const filter = {};
@@ -53,7 +54,6 @@ class ProductService {
     if (isFeatured !== undefined) filter.isFeatured = isFeatured === 'true' || isFeatured === true;
     if (status) filter.status = status;
 
-    // Advanced Search (Name or SKU)
     if (search) {
       filter.$or = [
         { name: { $regex: search, $options: 'i' } },
@@ -61,29 +61,26 @@ class ProductService {
       ];
     }
 
-    // Price Range Filtering
     if (minPrice || maxPrice) {
       filter.price = {};
       if (minPrice) filter.price.$gte = Number(minPrice);
       if (maxPrice) filter.price.$lte = Number(maxPrice);
     }
 
-    // Stock Status Filtering
     if (stockStatus === 'in_stock') {
       filter.quantity = { $gt: 0 };
     } else if (stockStatus === 'out_of_stock') {
       filter.quantity = { $lte: 0 };
     }
 
-    const products = await ProductRepository.findAll(filter, { createdAt: -1 }, parseInt(page), parseInt(limit));
+    const result = await ProductRepository.findAll(filter, { createdAt: -1 }, parseInt(limit), cursor);
     const total = await ProductRepository.count(filter);
 
     return {
-      products,
+      products: result.items,
       total,
-      page: parseInt(page),
-      limit: parseInt(limit),
-      totalPages: Math.ceil(total / limit)
+      nextCursor: result.nextCursor,
+      limit: parseInt(limit)
     };
   }
 
@@ -170,8 +167,8 @@ class ProductService {
 
   async getPublicProducts(query) {
     const {
-      page = 1,
       limit = 12,
+      cursor = null,
       category,
       search,
       minPrice,
@@ -180,7 +177,6 @@ class ProductService {
       stockStatus
     } = query;
 
-    // Try Cache First
     const cacheKey = `public_products:${JSON.stringify(query)}`;
     const cached = await Cache.get(cacheKey);
     if (cached) return cached;
@@ -205,23 +201,21 @@ class ProductService {
     if (sort === 'price_desc') sortOption = { price: -1 };
     if (sort === 'newest') sortOption = { createdAt: -1 };
 
-    const products = await ProductRepository.findActive(filter, sortOption, parseInt(page), parseInt(limit));
+    const result = await ProductRepository.findActive(filter, sortOption, parseInt(limit), cursor);
     const total = await ProductRepository.count({ ...filter, status: 'active', isActive: true });
 
-    const enrichedProducts = await FlashDealService.enrichProductsWithFlashDeals(products);
+    const enrichedProducts = await FlashDealService.enrichProductsWithFlashDeals(result.items);
 
-    const result = {
+    const finalResult = {
       products: enrichedProducts,
       total,
-      page: parseInt(page),
-      limit: parseInt(limit),
-      totalPages: Math.ceil(total / limit)
+      nextCursor: result.nextCursor,
+      limit: parseInt(limit)
     };
 
-    // Cache for 5 minutes
-    await Cache.set(cacheKey, result, 300);
+    await Cache.set(cacheKey, finalResult, 300);
 
-    return result;
+    return finalResult;
   }
 
   /**
@@ -237,46 +231,59 @@ class ProductService {
   async bulkImportProducts(excelBuffer) {
     const parseResult = await parseProductExcel(excelBuffer);
 
-    if (!parseResult.success && parseResult.errors.length > 0) {
+    if (!parseResult.success) {
       return {
         success: false,
-        created: 0,
-        failed: parseResult.errors.length,
-        errors: parseResult.errors,
-        message: parseResult.message
+        message: parseResult.message,
+        errors: parseResult.errors
       };
     }
 
     const products = parseResult.products;
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    const uploadedImages = []; // Track images uploaded during synchronous phase if any
 
-    const createdProducts = [];
-    const uploadedImages = [];
+    // Offload to background worker for high-scale processing
+    await productQueue.add('bulk-import', {
+      type: 'BULK_IMPORT',
+      data: {
+        products,
+        uploadedImages
+      }
+    });
+
+    return {
+      success: true,
+      message: 'Bulk import has been queued and will be processed in the background.',
+      totalQueued: products.length
+    };
+  }
+
+  /**
+   * Internal method called by worker to execute high-performance bulk writes
+   */
+  async executeBulkImport(products, existingUploadedImages = []) {
+    const bulkOps = [];
+    const uploadedImages = [...existingUploadedImages];
     const errors = [];
 
     try {
       for (let i = 0; i < products.length; i++) {
         const productData = products[i];
-        const rowIndex = i + 3; // Starting after header and desc
+        const rowIndex = i + 3;
 
         try {
-          // 1. Validate Category
           const category = await ProductCategoryRepository.findByName(productData.categoryName);
           if (!category) throw new Error(`Category '${productData.categoryName}' not found`);
           productData.category = category._id;
 
-          // 2. Validate SubCategory
           if (productData.subCategoryName) {
             const subCat = await ProductSubCategoryRepository.findByNameAndCategory(productData.subCategoryName, category._id);
             if (subCat) productData.subCategory = subCat._id;
           }
 
-          // 3. Unique SKU Check
           const existingSku = await ProductRepository.findOne({ sku: productData.sku });
           if (existingSku) throw new Error(`SKU '${productData.sku}' already exists`);
 
-          // 4. Handle Images
           const imageFolder = 'products/bulk-import';
           if (productData._thumbnailUrl) {
             const thumb = await uploadImageFromUrl(productData._thumbnailUrl, imageFolder);
@@ -291,35 +298,30 @@ class ProductService {
             if (!productData.thumbnail) productData.thumbnail = images[0];
           }
 
-          // 5. Default Overrides for Admin Import
           productData.status = 'active';
           productData.isActive = false;
 
-          const product = await ProductRepository.create(productData);
-          createdProducts.push(product);
+          bulkOps.push({ insertOne: { document: productData } });
 
         } catch (error) {
           errors.push({ row: rowIndex, sku: productData.sku, error: error.message });
-          throw error; // Rollback
         }
       }
 
-      await session.commitTransaction();
-      await this.invalidateCache();
-      return { success: true, created: createdProducts.length, failed: 0 };
+      if (bulkOps.length > 0) {
+        await mongoose.model('Product').bulkWrite(bulkOps, { ordered: false });
+        await this.invalidateCache();
+      }
+
+      if (errors.length > 0) {
+        Logger.warn(`Bulk import finished with ${errors.length} errors`, { errors });
+      }
+
+      return { success: true, count: bulkOps.length, errors };
 
     } catch (error) {
-      await session.abortTransaction();
       if (uploadedImages.length > 0) await deleteMultipleImages(uploadedImages);
-      return {
-        success: false,
-        created: 0,
-        failed: products.length,
-        errors: errors.length > 0 ? errors : [{ error: error.message }],
-        message: 'Bulk import failed. Rolling back.'
-      };
-    } finally {
-      session.endSession();
+      throw error; // Let worker handle retry
     }
   }
 
@@ -328,8 +330,8 @@ class ProductService {
      */
   async getLowStockProducts(query) {
     const {
-      page = 1,
       limit = 10,
+      cursor = null,
       threshold = 10,
       category,
       search,
@@ -348,15 +350,14 @@ class ProductService {
     let sortOption = { quantity: 1 }; // Default: Low to High
     if (stockSort === 'desc') sortOption = { quantity: -1 };
 
-    const products = await ProductRepository.findLowStock(Number(threshold), filter, sortOption, parseInt(page), parseInt(limit));
+    const result = await ProductRepository.findLowStock(Number(threshold), filter, sortOption, parseInt(limit), cursor);
     const total = await ProductRepository.count({ ...filter, quantity: { $lte: Number(threshold) } });
 
     return {
-      products,
+      products: result.items,
       total,
-      page: parseInt(page),
-      limit: parseInt(limit),
-      totalPages: Math.ceil(total / limit)
+      nextCursor: result.nextCursor,
+      limit: parseInt(limit)
     };
   }
 
@@ -375,33 +376,32 @@ class ProductService {
   /**
      * @desc    Optimized Search for Public Search Bar
      */
-  async searchProducts(query, page = 1, limit = 12) {
-    if (!query) return { products: [], total: 0 };
+  async searchProducts(query, cursor = null, limit = 12) {
+    if (!query) return { products: [], total: 0, nextCursor: null };
 
-    const cacheKey = `search:${query}:${page}:${limit}`;
+    const cacheKey = `search:${query}:${cursor}:${limit}`;
     const cached = await Cache.get(cacheKey);
     if (cached) return cached;
 
-    const products = await ProductRepository.searchText(query, parseInt(page), parseInt(limit));
+    const result = await ProductRepository.searchText(query, parseInt(limit), cursor);
     const total = await ProductRepository.count({
       $text: { $search: query },
       status: 'active',
       isActive: true
     });
 
-    const enrichedProducts = await FlashDealService.enrichProductsWithFlashDeals(products);
+    const enrichedProducts = await FlashDealService.enrichProductsWithFlashDeals(result.items);
 
-    const result = {
+    const finalResult = {
       products: enrichedProducts,
       total,
-      page: parseInt(page),
-      limit: parseInt(limit),
-      totalPages: Math.ceil(total / limit)
+      nextCursor: result.nextCursor,
+      limit: parseInt(limit)
     };
 
     // Cache for 10 minutes
-    await Cache.set(cacheKey, result, 600);
-    return result;
+    await Cache.set(cacheKey, finalResult, 600);
+    return finalResult;
   }
 
   /**

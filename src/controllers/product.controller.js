@@ -30,7 +30,12 @@ class ProductController {
   getAllProducts = catchAsync(async (req, res) => {
     const result = await ProductService.getAllProducts(req.query);
     res.status(HTTP_STATUS.OK).json(
-      new ApiResponse(HTTP_STATUS.OK, result, SUCCESS_MESSAGES.FETCHED)
+      new ApiResponse(HTTP_STATUS.OK, {
+        products: result.products,
+        total: result.total,
+        nextCursor: result.nextCursor,
+        limit: result.limit
+      }, SUCCESS_MESSAGES.FETCHED)
     );
   });
 
@@ -165,7 +170,12 @@ class ProductController {
   getLowStockProducts = catchAsync(async (req, res) => {
     const result = await ProductService.getLowStockProducts(req.query);
     res.status(HTTP_STATUS.OK).json(
-      new ApiResponse(HTTP_STATUS.OK, result, SUCCESS_MESSAGES.FETCHED)
+      new ApiResponse(HTTP_STATUS.OK, {
+        products: result.products,
+        total: result.total,
+        nextCursor: result.nextCursor,
+        limit: result.limit
+      }, SUCCESS_MESSAGES.FETCHED)
     );
   });
 
@@ -192,9 +202,15 @@ class ProductController {
      * @access  Public
      */
   searchProducts = catchAsync(async (req, res) => {
-    const result = await ProductService.searchProducts(req.query.q, req.query.page, req.query.limit);
+    const { q, cursor, limit } = req.query;
+    const result = await ProductService.searchProducts(q, cursor, limit);
     res.status(HTTP_STATUS.OK).json(
-      new ApiResponse(HTTP_STATUS.OK, result, SUCCESS_MESSAGES.FETCHED)
+      new ApiResponse(HTTP_STATUS.OK, {
+        products: result.products,
+        total: result.total,
+        nextCursor: result.nextCursor,
+        limit: result.limit
+      }, SUCCESS_MESSAGES.FETCHED)
     );
   });
 
@@ -216,7 +232,12 @@ class ProductController {
   getPublicProducts = catchAsync(async (req, res) => {
     const result = await ProductService.getPublicProducts(req.query);
     res.status(HTTP_STATUS.OK).json(
-      new ApiResponse(HTTP_STATUS.OK, result, SUCCESS_MESSAGES.FETCHED)
+      new ApiResponse(HTTP_STATUS.OK, {
+        products: result.products,
+        total: result.total,
+        nextCursor: result.nextCursor,
+        limit: result.limit
+      }, SUCCESS_MESSAGES.FETCHED)
     );
   });
 

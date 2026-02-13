@@ -93,6 +93,9 @@ const customerSchema = new mongoose.Schema(
   }
 );
 
+// High-performance indexes for admin filtering and searching
+customerSchema.index({ isActive: 1, role: 1, createdAt: -1 });
+
 // Encrypt password using Argon2 (assuming security.js uses it)
 customerSchema.pre('save', async function () {
   if (!this.isModified('password')) {

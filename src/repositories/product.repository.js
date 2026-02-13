@@ -5,16 +5,41 @@ class ProductRepository {
     return await Product.create(data);
   }
 
-  async findAll(filter = {}, sort = { createdAt: -1 }, page = 1, limit = 10) {
-    const skip = (page - 1) * limit;
-    return await Product.find(filter)
+  async findAll(filter = {}, sort = { createdAt: -1 }, limit = 10, nextCursor = null) {
+    const query = { ...filter };
+
+    // Cursor Pagination Logic
+    if (nextCursor) {
+      const [cursorDate, cursorId] = nextCursor.split('_');
+      // For descending createdAt sort
+      query.$or = [
+        { createdAt: { $lt: new Date(Number(cursorDate)) } },
+        {
+          createdAt: new Date(Number(cursorDate)),
+          _id: { $lt: cursorId }
+        }
+      ];
+    }
+
+    const products = await Product.find(query)
       .sort(sort)
-      .skip(skip)
-      .limit(limit)
+      .limit(limit + 1) // Fetch one extra to check if there's a next page
       .populate('category', 'name slug')
       .populate('subCategory', 'name slug')
       .populate('attributes.attribute', 'name')
       .lean();
+
+    const hasNextPage = products.length > limit;
+    const items = hasNextPage ? products.slice(0, limit) : products;
+
+    let lastItem = items[items.length - 1];
+    let newCursor = hasNextPage ? `${new Date(lastItem.createdAt).getTime()}_${lastItem._id}` : null;
+
+    return {
+      items,
+      nextCursor: newCursor,
+      hasNextPage
+    };
   }
 
   async findById(id) {
@@ -47,19 +72,41 @@ class ProductRepository {
   /**
      * Optimized find for Public Homepage (Active only)
      */
-  async findActive(filter = {}, sort = { createdAt: -1 }, page = 1, limit = 12) {
+  async findActive(filter = {}, sort = { createdAt: -1 }, limit = 12, nextCursor = null) {
     const query = {
       ...filter,
       status: 'active',
       isActive: true
     };
-    const skip = (page - 1) * limit;
-    return await Product.find(query)
-      .select('name price thumbnail discount discountType status isActive isFeatured quantity unit colors attributes variations')
+
+    if (nextCursor) {
+      const [cursorDate, cursorId] = nextCursor.split('_');
+      query.$or = [
+        { createdAt: { $lt: new Date(Number(cursorDate)) } },
+        {
+          createdAt: new Date(Number(cursorDate)),
+          _id: { $lt: cursorId }
+        }
+      ];
+    }
+
+    const products = await Product.find(query)
+      .select('name price thumbnail discount discountType status isActive isFeatured quantity unit colors attributes variations createdAt')
       .sort(sort)
-      .skip(skip)
-      .limit(limit)
+      .limit(limit + 1)
       .lean();
+
+    const hasNextPage = products.length > limit;
+    const items = hasNextPage ? products.slice(0, limit) : products;
+
+    let lastItem = items[items.length - 1];
+    let newCursor = hasNextPage ? `${new Date(lastItem.createdAt).getTime()}_${lastItem._id}` : null;
+
+    return {
+      items,
+      nextCursor: newCursor,
+      hasNextPage
+    };
   }
 
   /**
@@ -76,40 +123,92 @@ class ProductRepository {
   /**
      * Find products with stock below threshold
      */
-  async findLowStock(threshold = 10, filter = {}, sort = { quantity: 1 }, page = 1, limit = 10) {
-    const skip = (page - 1) * limit;
+  async findLowStock(threshold = 10, filter = {}, sort = { quantity: 1 }, limit = 10, nextCursor = null) {
     const query = {
       ...filter,
       quantity: { $lte: threshold }
     };
-    return await Product.find(query)
+
+    if (nextCursor) {
+      const [cursorVal, cursorId] = nextCursor.split('_');
+      // Numeric quantity sort
+      query.$or = [
+        { quantity: { $gt: Number(cursorVal) } }, // Default asc, but if quantity is same use _id
+        {
+          quantity: Number(cursorVal),
+          _id: { $gt: cursorId }
+        }
+      ];
+    }
+
+    const products = await Product.find(query)
       .sort(sort)
-      .skip(skip)
-      .limit(limit)
+      .limit(limit + 1)
       .populate('category', 'name')
       .lean();
+
+    const hasNextPage = products.length > limit;
+    const items = hasNextPage ? products.slice(0, limit) : products;
+
+    let lastItem = items[items.length - 1];
+    let newCursor = hasNextPage ? `${lastItem.quantity}_${lastItem._id}` : null;
+
+    return {
+      items,
+      nextCursor: newCursor,
+      hasNextPage
+    };
   }
 
   /**
      * High-performance Text Search
      */
-  async searchText(query, page = 1, limit = 12) {
-    const skip = (page - 1) * limit;
+  async searchText(query, limit = 12, nextCursor = null) {
     const filter = {
       $text: { $search: query },
       status: 'active',
       isActive: true
     };
 
-    return await Product.find(
+    if (nextCursor) {
+      const [cursorScore, cursorId] = nextCursor.split('_');
+      // Hybrid filter for text search (stable cursor)
+      filter.$or = [
+        { score: { $lt: Number(cursorScore) } },
+        {
+          score: Number(cursorScore),
+          _id: { $lt: cursorId }
+        }
+      ];
+    }
+
+    // Note: When using $text score with extra filters, Mongoose needs special handling
+    // or we might need to use aggregations for true stable cursor on scores.
+    // For now, simple $text + score + _id is implemented.
+
+    const products = await Product.find(
       filter,
       { score: { $meta: 'textScore' } }
     )
-      .sort({ score: { $meta: 'textScore' } })
-      .skip(skip)
-      .limit(limit)
-      .select('name price thumbnail discount discountType status isActive isFeatured quantity unit colors searchTags')
+      .sort({ score: { $meta: 'textScore' }, _id: -1 })
+      .limit(limit + 1)
+      .select('name price thumbnail discount discountType status isActive isFeatured quantity unit colors searchTags createdAt')
       .lean();
+
+    // Since text search scores are floating points, skip/limit is sometimes still 
+    // used in elasticsearch-like layers. But here we mimic the cursor pattern.
+
+    const hasNextPage = products.length > limit;
+    const items = hasNextPage ? products.slice(0, limit) : products;
+
+    let lastItem = items[items.length - 1];
+    let newCursor = hasNextPage ? `${lastItem.score}_${lastItem._id}` : null;
+
+    return {
+      items,
+      nextCursor: newCursor,
+      hasNextPage
+    };
   }
 
   /**

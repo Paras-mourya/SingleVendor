@@ -48,6 +48,8 @@ const supportTicketSchema = new mongoose.Schema(
 );
 
 // Index for performance on sorting
+supportTicketSchema.index({ customer: 1, status: 1, createdAt: -1 });
+supportTicketSchema.index({ status: 1, priority: 1, createdAt: -1 });
 supportTicketSchema.index({ createdAt: -1 });
 
 // Pre-save hook to generate Ticket ID (e.g., TK1001)

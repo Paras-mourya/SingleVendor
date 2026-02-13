@@ -63,6 +63,10 @@ const flashDealSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
+// Search optimization for active flash deals
+flashDealSchema.index({ isPublished: 1, startDate: 1, endDate: 1 });
+flashDealSchema.index({ startDate: -1 }); // Recently created deals
+
 // Virtual for status (Active/Expired)
 flashDealSchema.virtual('status').get(function () {
   const now = new Date();

@@ -24,6 +24,8 @@ const productCategorySchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+productCategorySchema.index({ status: 1, createdAt: -1 });
+
 const ProductCategory = mongoose.model('ProductCategory', productCategorySchema);
 
 export default ProductCategory;

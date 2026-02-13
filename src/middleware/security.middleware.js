@@ -114,21 +114,31 @@ const securityMiddleware = (app) => {
   // 4. Prevent parameter pollution (e.g., ?id=1&id=2)
   app.use(hpp());
 
-  // 5. Rate limiting
-  const limiter = rateLimit({
-    max: 100000, // Enterprise scale: Limit each IP per window
-    windowMs: 60 * 60 * 1000, // 1 hour
+  // 5. Tiered Rate Limiting (Enterprise Scaling Pattern)
+  const createLimiter = (max, windowMinutes, message) => rateLimit({
+    max,
+    windowMs: windowMinutes * 60 * 1000,
     message: {
       status: HTTP_STATUS.TOO_MANY_REQUESTS,
-      message: 'Too many requests from this IP, please try again in an hour!',
+      message: message || 'Too many requests, please try again later.',
       code: 'RATE_LIMIT_EXCEEDED'
     },
-    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-    validate: { trustProxy: false }, // Suppress trust proxy validation warning on Render
+    standardHeaders: true,
+    legacyHeaders: false,
+    validate: { trustProxy: false },
   });
 
-  app.use('/api', limiter);
+  // General API Limiter (1000 requests per 15 minutes per IP)
+  const apiLimiter = createLimiter(1000, 15, 'General API rate limit exceeded.');
+
+  // Auth Limiter (Brute force protection: 5 attempts per 15 minutes per IP)
+  const authLimiter = createLimiter(10, 15, 'Too many login attempts. Please try again in 15 minutes.');
+
+  app.use('/api', apiLimiter);
+  app.use('/api/v1/admin/auth', authLimiter);
+  app.use('/api/v1/employee/auth', authLimiter);
+  app.use('/api/v1/customers/login', authLimiter);
+  app.use('/api/v1/customers/register', authLimiter);
 
   // 6. Environment Enforcement Middleware
   app.use(async (req, res, next) => {

@@ -29,8 +29,12 @@ export const submitTicket = catchAsync(async (req, res) => {
  * @access  Private (Customer)
  */
 export const getMyTickets = catchAsync(async (req, res) => {
-  const tickets = await SupportTicketService.getCustomerTickets(req.user._id, req.query);
-  res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, tickets));
+  const result = await SupportTicketService.getCustomerTickets(req.user._id, req.query);
+  res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, {
+    tickets: result.tickets,
+    nextCursor: result.nextCursor,
+    limit: result.limit
+  }, 'Tickets fetched successfully'));
 });
 
 /**
@@ -40,7 +44,11 @@ export const getMyTickets = catchAsync(async (req, res) => {
  */
 export const getAllTickets = catchAsync(async (req, res) => {
   const result = await SupportTicketService.getAllTickets(req.query);
-  res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, result));
+  res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, {
+    tickets: result.tickets,
+    nextCursor: result.nextCursor,
+    limit: result.limit
+  }, 'All tickets fetched successfully'));
 });
 
 /**

@@ -11,9 +11,13 @@ import AuditLogger from '../utils/audit.js';
  * @access  Private (Admin)
  */
 export const getAllCustomers = catchAsync(async (req, res) => {
-  const { page, limit, search, status } = req.query;
-  const result = await CustomerService.getAllCustomers(page, limit, search, status);
-  res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, result));
+  const result = await CustomerService.getAllCustomers(req.query);
+  res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, {
+    customers: result.customers,
+    total: result.total,
+    nextCursor: result.nextCursor,
+    limit: result.limit
+  }, 'Customers fetched successfully'));
 });
 
 /**

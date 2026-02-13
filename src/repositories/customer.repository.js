@@ -37,19 +37,42 @@ class CustomerRepository {
     return await Customer.findByIdAndUpdate(id, updateData, options);
   }
 
-  async findAll(filter = {}, sort = { createdAt: -1 }, page = 1, limit = 10, selectFields = '') {
-    Logger.debug('DB: Finding all customers', { filter, sort, page, limit });
-    const skip = (page - 1) * limit;
-    const query = Customer.find(filter)
-      .sort(sort)
-      .skip(skip)
-      .limit(limit);
+  async findAll(filter = {}, sort = { createdAt: -1 }, limit = 10, nextCursor = null, selectFields = '') {
+    Logger.debug('DB: Finding all customers', { filter, sort, limit, nextCursor });
 
-    if (selectFields) {
-      query.select(selectFields);
+    const query = { ...filter };
+    if (nextCursor) {
+      const [cursorTime, cursorId] = nextCursor.split('_');
+      query.$or = [
+        { createdAt: { $lt: new Date(Number(cursorTime)) } },
+        {
+          createdAt: new Date(Number(cursorTime)),
+          _id: { $lt: cursorId }
+        }
+      ];
     }
 
-    return await query.lean();
+    const docQuery = Customer.find(query)
+      .sort(sort)
+      .limit(limit + 1);
+
+    if (selectFields) {
+      docQuery.select(selectFields);
+    }
+
+    const customers = await docQuery.lean();
+
+    const hasNextPage = customers.length > limit;
+    const items = hasNextPage ? customers.slice(0, limit) : customers;
+
+    let lastItem = items[items.length - 1];
+    let newCursor = hasNextPage ? `${new Date(lastItem.createdAt).getTime()}_${lastItem._id}` : null;
+
+    return {
+      items,
+      nextCursor: newCursor,
+      hasNextPage
+    };
   }
 
   async count(filter = {}) {

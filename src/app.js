@@ -35,10 +35,13 @@ securityMiddleware(app);
 /**
  * PRODUCTION-GRADE MIDDLEWARE STACK
  */
+app.set('etag', 'strong'); // Enable strong ETags for reliable caching
+
+// 2. Performance Middlewares
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(cookieParser());
-app.use(compression());
+app.use(compression({ level: 6, threshold: 1024 })); // Optimize compression
 app.use(responseTime());
 
 // Global Identifiers & Context

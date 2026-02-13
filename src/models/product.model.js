@@ -177,9 +177,10 @@ const productSchema = new mongoose.Schema(
 
 // Indexes for high performance
 productSchema.index({ name: 'text', description: 'text', searchTags: 'text' });
-productSchema.index({ status: 1, isActive: 1, category: 1 }); // Fast category filtering
-productSchema.index({ status: 1, isActive: 1, isFeatured: 1 }); // Fast homepage loading
-productSchema.index({ status: 1, isActive: 1, price: 1 }); // Fast price sorting
+productSchema.index({ status: 1, isActive: 1, category: 1, createdAt: -1 }); // Optimized category listings
+productSchema.index({ status: 1, isActive: 1, subCategory: 1, createdAt: -1 }); // Optimized subcategory listings
+productSchema.index({ status: 1, isActive: 1, isFeatured: 1, createdAt: -1 }); // Optimized homepage
+productSchema.index({ status: 1, isActive: 1, price: 1, createdAt: -1 }); // Optimized price sorting
 productSchema.index({ status: 1, isActive: 1, createdAt: -1 }); // Fast recent listings
 
 const Product = mongoose.model('Product', productSchema);

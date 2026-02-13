@@ -5,6 +5,7 @@ import connectDB from './src/config/db.js';
 import redisClient, { closeRedis } from './src/config/redis.js';
 import AdminService from './src/services/admin.service.js';
 import systemConfig from './src/utils/systemConfig.js';
+import './src/workers/product.worker.js'; // Start background worker
 
 // Connect to database
 console.log('Connecting to database...');
@@ -14,7 +15,9 @@ console.log('Connected to database.');
 // Connect to Redis (Enterprise: verify connectivity on startup)
 try {
   if (process.env.NODE_ENV !== 'test') {
-    await redisClient.connect();
+    if (redisClient.status === 'wait') {
+      await redisClient.connect();
+    }
   } else {
     Logger.info('Test environment detected, skipping real Redis connection');
   }

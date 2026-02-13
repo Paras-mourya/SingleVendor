@@ -514,7 +514,14 @@ class CustomerService {
   /**
      * Get All Customers (for Admin)
      */
-  async getAllCustomers(page = 1, limit = 10, search = '', status) {
+  async getAllCustomers(query = {}) {
+    const {
+      limit = 10,
+      cursor = null,
+      search = '',
+      status
+    } = query;
+
     const filter = {};
 
     if (search) {
@@ -529,14 +536,14 @@ class CustomerService {
       filter.isActive = status === 'active';
     }
 
-    const customers = await CustomerRepository.findAll(filter, { createdAt: -1 }, page, limit);
+    const result = await CustomerRepository.findAll(filter, { createdAt: -1 }, parseInt(limit), cursor);
     const total = await CustomerRepository.count(filter);
 
     return {
-      customers,
+      customers: result.items,
       total,
-      page,
-      pages: Math.ceil(total / limit),
+      nextCursor: result.nextCursor,
+      limit: parseInt(limit)
     };
   }
 
@@ -544,7 +551,8 @@ class CustomerService {
      * Get Customers for Export (Admin)
      */
   async getCustomersForExport(filter = {}) {
-    return await CustomerRepository.findAll(filter, { createdAt: -1 }, 1, 10000); // High limit for export
+    const result = await CustomerRepository.findAll(filter, { createdAt: -1 }, 10000); // Higher limit, no cursor for small-medium sets
+    return result.items || [];
   }
 
   generateTokens(customer) {

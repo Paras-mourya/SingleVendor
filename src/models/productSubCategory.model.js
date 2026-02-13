@@ -18,6 +18,7 @@ const productSubCategorySchema = new mongoose.Schema(
 
 // Prevent duplicate subcategory names under the same parent category
 productSubCategorySchema.index({ name: 1, category: 1 }, { unique: true });
+productSubCategorySchema.index({ category: 1, createdAt: -1 });
 
 const ProductSubCategory = mongoose.model('ProductSubCategory', productSubCategorySchema);
 

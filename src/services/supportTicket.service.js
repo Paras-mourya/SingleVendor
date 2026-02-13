@@ -32,14 +32,23 @@ class SupportTicketService {
   }
 
   async getCustomerTickets(customerId, query = {}) {
-    const { page = 1, limit = 10 } = query;
-    return await SupportTicketRepository.findByCustomer(customerId, parseInt(page), parseInt(limit));
+    const { limit = 10, cursor = null } = query;
+    const result = await SupportTicketRepository.findByCustomer(customerId, parseInt(limit), cursor);
+    return {
+      tickets: result.items,
+      nextCursor: result.nextCursor,
+      limit: parseInt(limit)
+    };
   }
 
   async getAllTickets(query = {}) {
-    const { page = 1, limit = 10, ...filter } = query;
-    // Clean filter to only include allowed keys if necessary, or pass as is if trusted
-    return await SupportTicketRepository.findAll(filter, parseInt(page), parseInt(limit));
+    const { limit = 10, cursor = null, ...filter } = query;
+    const result = await SupportTicketRepository.findAll(filter, parseInt(limit), cursor);
+    return {
+      tickets: result.items,
+      nextCursor: result.nextCursor,
+      limit: parseInt(limit)
+    };
   }
 
   async getDetailedStats() {
@@ -82,7 +91,8 @@ class SupportTicketService {
   }
 
   async getTicketsForExport() {
-    return await SupportTicketRepository.findAll({});
+    const result = await SupportTicketRepository.findAll({}, 10000); // High limit for export
+    return result.items || [];
   }
 
   async replyToTicket(ticketId, adminReply) {
