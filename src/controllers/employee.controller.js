@@ -31,14 +31,8 @@ export const login = catchAsync(async (req, res) => {
  * @access  Private (Admin)
  */
 export const getAllEmployees = catchAsync(async (req, res) => {
-  const { page = 1, limit = 10, search, status, role } = req.query;
-  const query = {};
-  if (search) query.$or = [{ name: new RegExp(search, 'i') }, { email: new RegExp(search, 'i') }];
-  if (status) query.isActive = status === 'active';
-  if (role) query.role = role;
-
-  const result = await EmployeeService.getAllEmployees(query, Number(page), Number(limit));
-  res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, result));
+  const result = await EmployeeService.getAllEmployees(req.query);
+  res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, result, 'Employees fetched successfully'));
 });
 
 /**
@@ -68,7 +62,7 @@ export const toggleStatus = catchAsync(async (req, res) => {
  * @access  Private (Admin)
  */
 export const exportEmployees = catchAsync(async (req, res) => {
-  const { employees } = await EmployeeService.getAllEmployees({}, 1, 1000);
+  const { employees } = await EmployeeService.getAllEmployees({ limit: 5000 });
 
   const headers = ['ID', 'Name', 'Email', 'Phone', 'Role', 'Status', 'Last Login'];
   const fields = ['_id', 'name', 'email', 'phoneNumber', 'role.name', 'isActive', 'lastLogin'];

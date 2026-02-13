@@ -9,13 +9,13 @@ class ProductAttributeController {
   };
 
   getAllAttributes = async (req, res) => {
-    const attributes = await ProductAttributeService.getAllAttributes(req.query);
-    return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, attributes, SUCCESS_MESSAGES.FETCHED));
+    const result = await ProductAttributeService.getAllAttributes(req.query);
+    return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, result, SUCCESS_MESSAGES.FETCHED));
   };
 
   getPublicAttributes = async (req, res) => {
-    const attributes = await ProductAttributeService.getPublicAttributes();
-    return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, attributes, SUCCESS_MESSAGES.FETCHED));
+    const result = await ProductAttributeService.getPublicAttributes(req.query);
+    return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, result, SUCCESS_MESSAGES.FETCHED));
   };
 
   getAttributeById = async (req, res) => {

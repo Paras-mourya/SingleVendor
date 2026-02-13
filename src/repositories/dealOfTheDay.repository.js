@@ -6,25 +6,14 @@ class DealOfTheDayRepository extends BaseRepository {
     super(DealOfTheDay);
   }
 
-  async findAllWithStats(filter = {}, sort = { createdAt: -1 }, page = 1, limit = 10) {
-    const skip = (page - 1) * limit;
-
-    const deals = await this.model.find(filter)
-      .sort(sort)
-      .skip(skip)
-      .limit(limit)
-      .lean({ virtuals: true });
-
-    const total = await this.model.countDocuments(filter);
+  async findAllWithStats(filter = {}, sort = { createdAt: -1 }, limit = 10, cursor = null) {
+    const result = await this.findWithCursor(filter, sort, limit, cursor);
 
     return {
-      data: deals,
-      pagination: {
-        total,
-        page,
-        limit,
-        pages: Math.ceil(total / limit)
-      }
+      data: result.items,
+      total: await this.count(filter),
+      nextCursor: result.nextCursor,
+      limit
     };
   }
 

@@ -31,12 +31,18 @@ class FlashDealService {
   }
 
   async getAllFlashDeals(query = {}) {
-    const { page = 1, limit = 10, title, isPublished } = query;
+    const { limit = 10, cursor = null, title, isPublished } = query;
     const filter = {};
     if (title) filter.title = { $regex: title, $options: 'i' };
     if (isPublished !== undefined) filter.isPublished = isPublished === 'true';
 
-    return await FlashDealRepository.findAllWithStats(filter, { createdAt: -1 }, parseInt(page), parseInt(limit));
+    const result = await FlashDealRepository.findAllWithStats(filter, { createdAt: -1 }, parseInt(limit), cursor);
+    return {
+      data: result.data,
+      total: result.total,
+      nextCursor: result.nextCursor,
+      limit: parseInt(limit)
+    };
   }
 
   async getFlashDealById(id) {

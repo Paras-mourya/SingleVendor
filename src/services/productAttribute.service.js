@@ -21,25 +21,27 @@ class ProductAttributeService {
     return attribute;
   }
 
-  async getAllAttributes(query) {
+  async getAllAttributes(query = {}) {
+    const { limit = 100, cursor = null } = query;
     // Simple caching for list without heavy filters
-    const cacheKey = `${ATTRIBUTE_CACHE_KEY}:list`;
+    const cacheKey = `${ATTRIBUTE_CACHE_KEY}:list:${limit}:${cursor || 'start'}`;
     const cached = await Cache.get(cacheKey);
     if (cached) return cached;
 
-    const attributes = await ProductAttributeRepository.findAll({}, { name: 1 }); // Sort by name
-    await Cache.set(cacheKey, attributes, 3600); // 1 hour
-    return attributes;
+    const result = await ProductAttributeRepository.findAll({}, { name: 1 }, parseInt(limit), cursor);
+    await Cache.set(cacheKey, result, 3600); // 1 hour
+    return result;
   }
 
-  async getPublicAttributes() {
-    const cacheKey = `${ATTRIBUTE_CACHE_KEY}:public`;
+  async getPublicAttributes(query = {}) {
+    const { limit = 100, cursor = null } = query;
+    const cacheKey = `${ATTRIBUTE_CACHE_KEY}:public:${limit}:${cursor || 'start'}`;
     const cached = await Cache.get(cacheKey);
     if (cached) return cached;
 
-    const attributes = await ProductAttributeRepository.findAll({ isActive: true }, { name: 1 });
-    await Cache.set(cacheKey, attributes, 3600);
-    return attributes;
+    const result = await ProductAttributeRepository.findAll({ isActive: true }, { name: 1 }, parseInt(limit), cursor);
+    await Cache.set(cacheKey, result, 3600);
+    return result;
   }
 
   async getAttributeById(id) {

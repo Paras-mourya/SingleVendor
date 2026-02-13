@@ -1,17 +1,23 @@
 import Coupon from '../models/coupon.model.js';
+import BaseRepository from './base.repository.js';
 
-class CouponRepository {
+class CouponRepository extends BaseRepository {
+  constructor() {
+    super(Coupon);
+  }
+
   async create(data) {
     return await Coupon.create(data);
   }
 
-  async findAll(filter = {}, sort = { createdAt: -1 }, page = 1, limit = 10) {
-    const skip = (page - 1) * limit;
-    return await Coupon.find(filter)
-      .sort(sort)
-      .skip(skip)
-      .limit(limit)
-      .lean();
+  async findAll(filter = {}, sort = { createdAt: -1 }, limit = 10, cursor = null) {
+    const result = await this.findWithCursor(filter, sort, limit, cursor);
+    return {
+      coupons: result.items,
+      total: await this.count(filter),
+      nextCursor: result.nextCursor,
+      limit
+    };
   }
 
   async findById(id) {

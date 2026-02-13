@@ -70,7 +70,7 @@ class BlogService {
 
     if (status) filter.status = status;
     if (category) filter.category = category;
-    
+
     // Date Filtering
     if (startDate || endDate) {
       filter.publishDate = {};
@@ -80,32 +80,49 @@ class BlogService {
 
     // Usually, we don't cache complex admin listings with many filter permutations
     // but we can if needed. For now, let's fetch fresh data for admin.
-    return await BlogRepository.findAll(filter, { 
-      page: parseInt(page) || 1, 
-      limit: parseInt(limit) || 10 
+    const result = await BlogRepository.findAll(filter, {
+      limit: parseInt(limit) || 10,
+      cursor: query.cursor || null
     });
+
+    return {
+      blogs: result.blogs,
+      total: result.total,
+      nextCursor: result.nextCursor,
+      limit: parseInt(limit) || 10
+    };
   }
 
-  async getPublicBlogs(filter = {}) {
+  async getPublicBlogs(query = {}) {
     // 0. Check Global Visibility
     const settings = await this.getSettings();
     if (!settings.isBlogEnabled) {
-      return [];
+      return { blogs: [], total: 0, nextCursor: null };
     }
 
-    // Try cache for full list
-    if (Object.keys(filter).length === 0) {
+    const { limit = 10, cursor = null, ...filter } = query;
+
+    // Try cache for default landing page (no filters, no cursor)
+    const isDefaultLanding = Object.keys(filter).length === 0 && !cursor;
+    if (isDefaultLanding) {
       const cached = await Cache.get(PUBLIC_BLOG_CACHE_KEY);
       if (cached) return cached;
     }
 
-    const blogs = await BlogRepository.findActiveBlogs(filter);
-    
-    if (Object.keys(filter).length === 0) {
-      await Cache.set(PUBLIC_BLOG_CACHE_KEY, blogs, 3600);
+    const result = await BlogRepository.findActiveBlogs(filter, { createdAt: -1 }, parseInt(limit), cursor);
+
+    const response = {
+      blogs: result.items,
+      total: result.total,
+      nextCursor: result.nextCursor,
+      limit: parseInt(limit)
+    };
+
+    if (isDefaultLanding) {
+      await Cache.set(PUBLIC_BLOG_CACHE_KEY, response, 3600);
     }
-    
-    return blogs;
+
+    return response;
   }
 
   async getBlogById(id) {
@@ -208,7 +225,7 @@ class BlogService {
     }
 
     const newStatus = forcedStatus || (blog.status === 'active' ? 'inactive' : 'active');
-    
+
     // If activating, check if category is active
     if (newStatus === 'active') {
       const category = await BlogCategoryRepository.findById(blog.category._id);

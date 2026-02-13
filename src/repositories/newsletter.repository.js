@@ -1,8 +1,13 @@
 import Newsletter from '../models/newsletter.model.js';
+import BaseRepository from './base.repository.js';
 
-class NewsletterRepository {
+class NewsletterRepository extends BaseRepository {
+  constructor() {
+    super(Newsletter);
+  }
+
   async subscribe(email) {
-    return await Newsletter.findOneAndUpdate(
+    return await this.model.findOneAndUpdate(
       { email },
       { status: 'subscribed' },
       { upsert: true, new: true }
@@ -10,7 +15,7 @@ class NewsletterRepository {
   }
 
   async unsubscribe(email) {
-    return await Newsletter.findOneAndUpdate(
+    return await this.model.findOneAndUpdate(
       { email },
       { status: 'unsubscribed' },
       { new: true }
@@ -18,17 +23,17 @@ class NewsletterRepository {
   }
 
   async findByEmail(email) {
-    return await Newsletter.findOne({ email });
+    return await this.model.findOne({ email });
   }
 
   async findAll(options = {}) {
-    const { 
-      search, 
-      startDate, 
-      endDate, 
-      sortBy = 'newestFirst', 
-      limit = 10, 
-      skip = 0 
+    const {
+      search,
+      startDate,
+      endDate,
+      sortBy = 'newestFirst',
+      limit = 10,
+      cursor = null
     } = options;
 
     const query = {};
@@ -45,33 +50,23 @@ class NewsletterRepository {
       if (endDate) query.createdAt.$lte = new Date(endDate);
     }
 
-    // 3. Sorting
-    let sort = { createdAt: -1 }; // Default: Newest First
+    // 3. Sorting (Mapping sortBy to Mongoose sort object)
+    let sort = { createdAt: -1 };
     switch (sortBy) {
-    case 'oldestFirst':
-      sort = { createdAt: 1 };
-      break;
-    case 'emailAZ':
-      sort = { email: 1 };
-      break;
-    case 'emailZA':
-      sort = { email: -1 };
-      break;
-    case 'newestFirst':
-    default:
-      sort = { createdAt: -1 };
+      case 'oldestFirst': sort = { createdAt: 1 }; break;
+      case 'emailAZ': sort = { email: 1 }; break;
+      case 'emailZA': sort = { email: -1 }; break;
+      default: sort = { createdAt: -1 };
     }
 
-    const subscribers = await Newsletter.find(query)
-      .sort(sort)
-      .skip(skip)
-      .limit(limit);
+    const result = await this.findWithCursor(query, sort, limit, cursor);
 
-    const total = await Newsletter.countDocuments(query);
-
-    return { subscribers, total };
+    return {
+      subscribers: result.items,
+      total: await this.count(query),
+      nextCursor: result.nextCursor
+    };
   }
 }
 
-const newsletterRepository = new NewsletterRepository();
-export { newsletterRepository as NewsletterRepository };
+export default new NewsletterRepository();

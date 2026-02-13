@@ -1,40 +1,52 @@
 import Blog from '../models/blog.model.js';
+import BaseRepository from './base.repository.js';
 
-class BlogRepository {
+class BlogRepository extends BaseRepository {
+  constructor() {
+    super(Blog);
+  }
+
   async create(data) {
     return await Blog.create(data);
   }
 
   async findAll(filter = {}, options = {}) {
-    const { 
-      page = 1, 
-      limit = 10, 
-      sort = { createdAt: -1 }, 
-      populate = 'category' 
+    const {
+      limit = 10,
+      sort = { createdAt: -1 },
+      populate = 'category',
+      cursor = null
     } = options;
 
-    const skip = (page - 1) * limit;
+    const result = await this.findWithCursor(filter, sort, limit, cursor);
 
-    const [blogs, total] = await Promise.all([
-      Blog.find(filter)
-        .sort(sort)
-        .skip(skip)
-        .limit(limit)
-        .populate(populate),
-      Blog.countDocuments(filter)
-    ]);
+    // Populate after fetching items
+    if (populate) {
+      await Blog.populate(result.items, { path: populate });
+    }
 
-    return { blogs, total, page, limit };
+    return {
+      blogs: result.items,
+      total: await this.count(filter),
+      nextCursor: result.nextCursor,
+      limit
+    };
   }
 
-  async findActiveBlogs(filter = {}, sort = { createdAt: -1 }) {
-    // Only fetch blogs with active status and populate category
-    return await Blog.find({ ...filter, status: 'active' })
-      .sort(sort)
-      .populate({
+  async findActiveBlogs(filter = {}, sort = { createdAt: -1 }, limit = 10, cursor = null) {
+    const result = await this.findWithCursor({ ...filter, status: 'active' }, sort, limit, cursor);
+
+    // Populate category and ensure it's active
+    if (result.items.length > 0) {
+      await Blog.populate(result.items, {
         path: 'category',
         match: { status: 'active' }
-      }).then(blogs => blogs.filter(blog => blog.category)); // Filter out blogs where category is not active (match returns null)
+      });
+      // Filter out blogs where category is not active
+      result.items = result.items.filter(blog => blog.category);
+    }
+
+    return result;
   }
 
   async findBySlug(slug, populate = 'category') {

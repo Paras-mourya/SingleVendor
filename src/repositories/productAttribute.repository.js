@@ -1,40 +1,30 @@
 import ProductAttribute from '../models/productAttribute.model.js';
+import BaseRepository from './base.repository.js';
 
-class ProductAttributeRepository {
-  async create(data) {
-    return await ProductAttribute.create(data);
+class ProductAttributeRepository extends BaseRepository {
+  constructor() {
+    super(ProductAttribute);
   }
 
-  async findAll(filter = {}, sort = { createdAt: -1 }, page = 1, limit = 100) {
-    const skip = (page - 1) * limit;
-    return await ProductAttribute.find(filter)
-      .sort(sort)
-      .skip(skip)
-      .limit(limit)
-      .lean();
-  }
-
-  async findById(id) {
-    return await ProductAttribute.findById(id).lean();
+  async findAll(filter = {}, sort = { createdAt: -1 }, limit = 100, cursor = null) {
+    const result = await this.findWithCursor(filter, sort, limit, cursor);
+    return {
+      attributes: result.items,
+      total: await this.count(filter),
+      nextCursor: result.nextCursor
+    };
   }
 
   async findOne(filter) {
-    return await ProductAttribute.findOne(filter).lean();
+    return await this.model.findOne(filter).lean();
   }
 
   async update(id, data) {
-    return await ProductAttribute.findByIdAndUpdate(id, data, {
-      new: true,
-      runValidators: true,
-    }).lean();
+    return await this.updateById(id, data);
   }
 
   async delete(id) {
-    return await ProductAttribute.findByIdAndDelete(id);
-  }
-
-  async count(filter = {}) {
-    return await ProductAttribute.countDocuments(filter);
+    return await this.deleteById(id);
   }
 }
 

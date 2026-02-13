@@ -16,15 +16,21 @@ const lockRequest = (ttl = 5) => {
       return next();
     }
 
-    // 1. Generate a unique key for the request
-    // Strategy: userId + path + hash(body)
-    const userId = req.user?._id || req.admin?._id || 'guest';
-    const bodyHash = crypto
-      .createHash('md5')
-      .update(JSON.stringify(req.body || {}))
-      .digest('hex');
+    // 1. Determine Idempotency Key
+    // Priority: X-Idempotency-Key header > hash(userId + path + body)
+    const idempotencyKey = req.headers['x-idempotency-key'];
+    let lockKey;
 
-    const lockKey = `lock:${userId}:${req.originalUrl}:${bodyHash}`;
+    if (idempotencyKey) {
+      lockKey = `lock:header:${idempotencyKey}`;
+    } else {
+      const userId = req.user?._id || req.admin?._id || 'guest';
+      const bodyHash = crypto
+        .createHash('md5')
+        .update(JSON.stringify(req.body || {}))
+        .digest('hex');
+      lockKey = `lock:auto:${userId}:${req.originalUrl}:${bodyHash}`;
+    }
 
     try {
       // 2. Check if lock exists in Redis

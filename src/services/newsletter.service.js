@@ -1,4 +1,4 @@
-import { NewsletterRepository } from '../repositories/newsletter.repository.js';
+import NewsletterRepository from '../repositories/newsletter.repository.js';
 import MailchimpService from '../services/mailchimp.service.js';
 import Cache from '../utils/cache.js';
 import Logger from '../utils/logger.js';
@@ -26,18 +26,20 @@ class NewsletterService {
 
     // 3. Invalidate admin list caches
     await this.invalidateCache();
-    
+
     return subscription;
   }
 
   async getSubscribers(queryOptions) {
-    // We only data-cache the default view (first page, newest first, no search)
-    const isDefaultView = !queryOptions.search && !queryOptions.startDate && !queryOptions.endDate && 
-                          (!queryOptions.sortBy || queryOptions.sortBy === 'newestFirst') && 
-                          queryOptions.skip === 0;
+    const { cursor = null, limit = 10 } = queryOptions;
+
+    // We only data-cache the default view (no search, no dates, newestFirst, no cursor)
+    const isDefaultView = !queryOptions.search && !queryOptions.startDate && !queryOptions.endDate &&
+      (!queryOptions.sortBy || queryOptions.sortBy === 'newestFirst') &&
+      !cursor;
 
     const cacheKey = `${NEWSLETTER_CACHE_PREFIX}default`;
-    
+
     if (isDefaultView) {
       const cached = await Cache.get(cacheKey);
       if (cached) {
@@ -46,13 +48,15 @@ class NewsletterService {
       }
     }
 
-    const data = await NewsletterRepository.findAll(queryOptions);
+    const { subscribers, total, nextCursor } = await NewsletterRepository.findAll(queryOptions);
+
+    const result = { subscribers, total, nextCursor, limit };
 
     if (isDefaultView) {
-      await Cache.set(cacheKey, data, 1800); // 30 min cache for default view
+      await Cache.set(cacheKey, result, 1800); // 30 min cache for default view
     }
 
-    return data;
+    return result;
   }
 }
 

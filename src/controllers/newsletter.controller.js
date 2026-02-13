@@ -23,13 +23,13 @@ class NewsletterController {
    * @access  Private (Admin)
    */
   getSubscribers = async (req, res) => {
-    const { 
-      search, 
-      startDate, 
-      endDate, 
-      sortBy, 
-      limit = 10, 
-      page = 1 
+    const {
+      search,
+      startDate,
+      endDate,
+      sortBy,
+      limit = 10,
+      cursor = null
     } = req.query;
 
     const queryOptions = {
@@ -38,21 +38,13 @@ class NewsletterController {
       endDate,
       sortBy,
       limit: parseInt(limit),
-      skip: (parseInt(page) - 1) * parseInt(limit)
+      cursor
     };
 
     const result = await NewsletterService.getSubscribers(queryOptions);
 
     return res.status(HTTP_STATUS.OK).json(
-      new ApiResponse(HTTP_STATUS.OK, {
-        subscribers: result.subscribers,
-        pagination: {
-          total: result.total,
-          limit: queryOptions.limit,
-          page: parseInt(page),
-          pages: Math.ceil(result.total / queryOptions.limit)
-        }
-      }, 'Subscribers fetched successfully')
+      new ApiResponse(HTTP_STATUS.OK, result, 'Subscribers fetched successfully')
     );
   };
 }

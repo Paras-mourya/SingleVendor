@@ -11,17 +11,14 @@ class BlogController {
   };
 
   getAllBlogs = async (req, res) => {
-    const { blogs, total, page, limit } = await BlogService.getAllBlogs(req.query);
-    
+    const result = await BlogService.getAllBlogs(req.query);
+
     return res.status(HTTP_STATUS.OK).json(
       new ApiResponse(HTTP_STATUS.OK, {
-        blogs,
-        pagination: {
-          total,
-          page,
-          limit,
-          totalPages: Math.ceil(total / limit)
-        }
+        blogs: result.blogs,
+        total: result.total,
+        nextCursor: result.nextCursor,
+        limit: result.limit
       }, SUCCESS_MESSAGES.FETCHED)
     );
   };

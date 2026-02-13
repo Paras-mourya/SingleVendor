@@ -1,6 +1,10 @@
 import Employee from '../models/employee.model.js';
+import BaseRepository from './base.repository.js';
 
-class EmployeeRepository {
+class EmployeeRepository extends BaseRepository {
+  constructor() {
+    super(Employee);
+  }
   async create(employeeData) {
     return await Employee.create(employeeData);
   }
@@ -17,13 +21,20 @@ class EmployeeRepository {
     return await Employee.findById(id).populate('role');
   }
 
-  async findAll(query = {}, skip = 0, limit = 10) {
-    return await Employee.find(query)
-      .populate('role')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
+  async findAll(query = {}, limit = 10, cursor = null) {
+    const result = await this.findWithCursor(query, { createdAt: -1 }, limit, cursor);
+
+    // Populate role for items
+    if (result.items.length > 0) {
+      await Employee.populate(result.items, { path: 'role' });
+    }
+
+    return {
+      employees: result.items,
+      total: await this.count(query),
+      nextCursor: result.nextCursor,
+      limit
+    };
   }
 
   async updateById(id, updateData) {

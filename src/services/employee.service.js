@@ -59,11 +59,16 @@ class EmployeeService {
     return { employee, token };
   }
 
-  async getAllEmployees(query, page, limit) {
-    const skip = (page - 1) * limit;
-    const employees = await EmployeeRepository.findAll(query, skip, limit);
-    const total = await EmployeeRepository.count(query);
-    return { employees, total, page, totalPages: Math.ceil(total / limit) };
+  async getAllEmployees(query) {
+    const { limit = 10, cursor = null, ...filter } = query;
+    const result = await EmployeeRepository.findAll(filter, parseInt(limit), cursor);
+
+    return {
+      employees: result.employees,
+      total: result.total,
+      nextCursor: result.nextCursor,
+      limit: parseInt(limit)
+    };
   }
 
   async getEmployeeStats() {

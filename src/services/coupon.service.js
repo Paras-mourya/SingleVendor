@@ -22,7 +22,7 @@ class CouponService {
      * @desc    Get all coupons with pagination
      */
   async getAllCoupons(query) {
-    const { page = 1, limit = 10, search, type, isActive } = query;
+    const { limit = 10, cursor = null, search, type, isActive } = query;
     const filter = {};
 
     if (search) {
@@ -34,15 +34,13 @@ class CouponService {
     if (type) filter.type = type;
     if (isActive !== undefined) filter.isActive = isActive === 'true';
 
-    const coupons = await CouponRepository.findAll(filter, { createdAt: -1 }, parseInt(page), parseInt(limit));
-    const total = await CouponRepository.count(filter);
+    const result = await CouponRepository.findAll(filter, { createdAt: -1 }, parseInt(limit), cursor);
 
     return {
-      coupons,
-      total,
-      page: parseInt(page),
-      limit: parseInt(limit),
-      totalPages: Math.ceil(total / limit)
+      coupons: result.coupons,
+      total: result.total,
+      nextCursor: result.nextCursor,
+      limit: parseInt(limit)
     };
   }
 
