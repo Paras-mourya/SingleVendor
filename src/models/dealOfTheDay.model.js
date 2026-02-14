@@ -29,7 +29,6 @@ const dealOfTheDaySchema = new mongoose.Schema({
   isPublished: {
     type: Boolean,
     default: false,
-    index: true
   }
 }, {
   timestamps: true,
@@ -38,5 +37,9 @@ const dealOfTheDaySchema = new mongoose.Schema({
 });
 
 const DealOfTheDay = mongoose.model('DealOfTheDay', dealOfTheDaySchema);
+
+// Performance indexes for deal queries
+dealOfTheDaySchema.index({ isPublished: 1 });
+dealOfTheDaySchema.index({ createdAt: -1 });
 
 export default DealOfTheDay;

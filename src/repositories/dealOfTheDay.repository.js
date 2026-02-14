@@ -18,7 +18,9 @@ class DealOfTheDayRepository extends BaseRepository {
   }
 
   async findByIdPopulated(id) {
-    return await this.model.findById(id).populate('products.product');
+    return await this.model.findById(id)
+      .populate('products.product', 'name price thumbnail discount discountType status isActive')
+      .lean();
   }
 
   async addProducts(dealId, productData) {
@@ -40,7 +42,7 @@ class DealOfTheDayRepository extends BaseRepository {
       dealId,
       { $pull: { products: { product: productId } } },
       { new: true }
-    );
+    ).lean();
   }
 
   async togglePublish(dealId, isPublished) {
@@ -48,7 +50,7 @@ class DealOfTheDayRepository extends BaseRepository {
       dealId,
       { isPublished },
       { new: true }
-    );
+    ).lean();
   }
 
   async toggleProductStatus(dealId, productId, isActive) {
@@ -56,7 +58,7 @@ class DealOfTheDayRepository extends BaseRepository {
       { _id: dealId, 'products.product': productId },
       { $set: { 'products.$.isActive': isActive } },
       { new: true }
-    );
+    ).lean();
   }
 }
 

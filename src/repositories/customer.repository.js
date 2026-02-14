@@ -79,6 +79,46 @@ class CustomerRepository {
     Logger.debug('DB: Counting customers', { filter });
     return await Customer.countDocuments(filter);
   }
+
+  /**
+   * BULK OPERATIONS
+   */
+
+  async bulkCreate(customers) {
+    Logger.debug('DB: Bulk creating customers', { count: customers.length });
+    return await Customer.insertMany(customers, { ordered: false });
+  }
+
+  async bulkUpdateStatus(ids, status) {
+    Logger.debug('DB: Bulk updating customer status', { count: ids.length, status });
+    return await Customer.updateMany(
+      { _id: { $in: ids } },
+      { 
+        $set: { 
+          status, 
+          updatedAt: new Date() 
+        } 
+      }
+    );
+  }
+
+  async bulkDelete(ids) {
+    Logger.debug('DB: Bulk deleting customers', { count: ids.length });
+    return await Customer.deleteMany({ _id: { $in: ids } });
+  }
+
+  async bulkUpdateTier(ids, tier) {
+    Logger.debug('DB: Bulk updating customer tier', { count: ids.length, tier });
+    return await Customer.updateMany(
+      { _id: { $in: ids } },
+      { 
+        $set: { 
+          tier, 
+          updatedAt: new Date() 
+        } 
+      }
+    );
+  }
 }
 
 export default new CustomerRepository();

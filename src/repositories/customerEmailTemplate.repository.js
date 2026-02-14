@@ -14,11 +14,11 @@ class CustomerEmailTemplateRepository {
       { event },
       { $set: updateData },
       { new: true, upsert: true, runValidators: true }
-    );
+    ).lean();
   }
 
   async findById(id) {
-    return await CustomerEmailTemplate.findById(id);
+    return await CustomerEmailTemplate.findById(id).lean();
   }
 
   async updateById(id, updateData) {
@@ -26,7 +26,7 @@ class CustomerEmailTemplateRepository {
       id,
       { $set: updateData },
       { new: true, runValidators: true }
-    );
+    ).lean();
   }
 }
 

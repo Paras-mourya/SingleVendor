@@ -6,7 +6,7 @@ class FAQRepository {
   }
 
   async findById(id) {
-    return await FAQ.findById(id);
+    return await FAQ.findById(id).lean();
   }
 
   async findAll(filter = {}) {
@@ -17,7 +17,7 @@ class FAQRepository {
     return await FAQ.findByIdAndUpdate(id, data, {
       new: true,
       runValidators: true,
-    });
+    }).lean();
   }
 
   async delete(id) {

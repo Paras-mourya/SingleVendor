@@ -11,7 +11,7 @@ class NewsletterRepository extends BaseRepository {
       { email },
       { status: 'subscribed' },
       { upsert: true, new: true }
-    );
+    ).lean();
   }
 
   async unsubscribe(email) {
@@ -19,11 +19,11 @@ class NewsletterRepository extends BaseRepository {
       { email },
       { status: 'unsubscribed' },
       { new: true }
-    );
+    ).lean();
   }
 
   async findByEmail(email) {
-    return await this.model.findOne({ email });
+    return await this.model.findOne({ email }).lean();
   }
 
   async findAll(options = {}) {

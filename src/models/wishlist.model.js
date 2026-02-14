@@ -18,7 +18,6 @@ const wishlistSchema = new mongoose.Schema({
     ref: 'Customer',
     required: true,
     unique: true, // One wishlist per customer
-    index: true
   },
   items: [wishlistItemSchema]
 }, {

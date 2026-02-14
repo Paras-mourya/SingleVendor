@@ -6,7 +6,6 @@ const supportTicketSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Customer',
       required: [true, 'Customer is required'],
-      index: true,
     },
     ticketId: {
       type: String,
@@ -35,7 +34,6 @@ const supportTicketSchema = new mongoose.Schema(
       type: String,
       enum: ['Open', 'In Progress', 'Resolved'],
       default: 'Open',
-      index: true,
     },
     adminReply: {
       type: String,

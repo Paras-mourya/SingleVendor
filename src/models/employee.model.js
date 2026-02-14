@@ -81,4 +81,8 @@ employeeSchema.methods.comparePassword = async function (candidatePassword, user
 
 const Employee = mongoose.model('Employee', employeeSchema);
 
+// High-performance indexes for employee queries
+employeeSchema.index({ role: 1, isActive: 1 });
+employeeSchema.index({ isActive: 1, createdAt: -1 });
+
 export default Employee;

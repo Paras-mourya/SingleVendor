@@ -11,8 +11,7 @@ const couponSchema = new mongoose.Schema({
     required: true,
     unique: true,
     trim: true,
-    uppercase: true,
-    index: true
+    uppercase: true
   },
   type: {
     type: String,
@@ -50,8 +49,7 @@ const couponSchema = new mongoose.Schema({
   },
   isActive: {
     type: Boolean,
-    default: true,
-    index: true
+    default: true
   },
   customerScope: {
     type: String,

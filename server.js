@@ -6,6 +6,7 @@ import redisClient, { closeRedis } from './src/config/redis.js';
 import AdminService from './src/services/admin.service.js';
 import systemConfig from './src/utils/systemConfig.js';
 import './src/workers/product.worker.js'; // Start background worker
+import mongoose from 'mongoose';
 
 // Connect to database
 console.log('Connecting to database...');
@@ -57,6 +58,14 @@ server = app.listen(PORT, () => {
 });
 
 /**
+ * HTTP KEEP-ALIVE SETTINGS
+ * Benefits: Reuse TCP connections, reduce overhead
+ */
+server.keepAliveTimeout = 65000;  // 65 seconds
+server.headersTimeout = 66000;    // 66 seconds (must be > keepAliveTimeout)
+server.requestTimeout = 30000;    // 30 seconds max request time
+
+/**
  * GRACEFUL SHUTDOWN
  */
 const gracefulShutdown = (signal) => {
@@ -91,6 +100,36 @@ const gracefulShutdown = (signal) => {
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Health Check for Render and monitoring
+app.get('/health', async (req, res) => {
+  try {
+    const dbStatus = mongoose.connection.readyState === 1 ? 'up' : 'down';
+    const redisStatus = redisClient.status === 'ready' ? 'up' : 'down';
+    
+    const status = dbStatus === 'up' && redisStatus === 'up' ? 200 : 503;
+    
+    res.status(status).json({
+      status: status === 200 ? 'healthy' : 'unhealthy',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      services: {
+        database: dbStatus,
+        redis: redisStatus
+      },
+      memory: {
+        used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB',
+        total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + 'MB'
+      }
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'unhealthy',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
 
 process.on('unhandledRejection', (err) => {
   Logger.error(`Unhandled Rejection: ${err.message}`, { stack: err.stack });

@@ -24,4 +24,7 @@ const roleSchema = new mongoose.Schema(
 
 const Role = mongoose.model('Role', roleSchema);
 
+// High-performance indexes for role queries
+roleSchema.index({ isActive: 1 });
+
 export default Role;

@@ -67,6 +67,9 @@ adminSchema.pre('save', async function () {
   this.password = await hashPassword(this.password);
 });
 
+// High-performance indexes for admin queries
+adminSchema.index({ createdAt: -1 });
+
 // Match admin entered password to hashed password in database
 adminSchema.methods.matchPassword = async function (enteredPassword) {
   return await comparePassword(this.password, enteredPassword);

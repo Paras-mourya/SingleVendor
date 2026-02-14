@@ -66,6 +66,42 @@ class CouponRepository extends BaseRepository {
       { new: true }
     ).lean();
   }
+
+  /**
+   * BULK OPERATIONS
+   */
+
+  async bulkCreate(coupons) {
+    return await Coupon.insertMany(coupons, { ordered: false });
+  }
+
+  async bulkUpdateStatus(ids, isActive) {
+    return await Coupon.updateMany(
+      { _id: { $in: ids } },
+      { 
+        $set: { 
+          isActive, 
+          updatedAt: new Date() 
+        } 
+      }
+    );
+  }
+
+  async bulkDelete(ids) {
+    return await Coupon.deleteMany({ _id: { $in: ids } });
+  }
+
+  async bulkExpire(ids) {
+    return await Coupon.updateMany(
+      { _id: { $in: ids } },
+      { 
+        $set: { 
+          expireDate: new Date(), 
+          updatedAt: new Date() 
+        } 
+      }
+    );
+  }
 }
 
 export default new CouponRepository();

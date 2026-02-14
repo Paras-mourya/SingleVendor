@@ -10,11 +10,11 @@ class TopbarRepository {
       new: true,
       upsert: true,
       runValidators: true,
-    });
+    }).lean();
   }
 
   async getTopbar() {
-    return await Topbar.findOne();
+    return await Topbar.findOne().lean();
   }
 }
 

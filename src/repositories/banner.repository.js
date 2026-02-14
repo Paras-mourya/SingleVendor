@@ -6,18 +6,18 @@ class BannerRepository {
   }
 
   async findById(id) {
-    return await Banner.findById(id);
+    return await Banner.findById(id).lean();
   }
 
   async findAll(filter = {}, sort = { createdAt: -1 }) {
-    return await Banner.find(filter).sort(sort);
+    return await Banner.find(filter).sort(sort).lean();
   }
 
   async update(id, data) {
     return await Banner.findByIdAndUpdate(id, data, {
       new: true,
       runValidators: true,
-    });
+    }).lean();
   }
 
   async delete(id) {
@@ -29,7 +29,7 @@ class BannerRepository {
       id,
       { published },
       { new: true }
-    );
+    ).lean();
   }
 }
 

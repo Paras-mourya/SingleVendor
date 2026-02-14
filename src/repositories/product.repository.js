@@ -227,6 +227,46 @@ class ProductRepository {
       .limit(limit)
       .lean();
   }
+
+  /**
+   * BULK OPERATIONS (Efficient for mass operations)
+   */
+
+  async bulkCreate(products) {
+    return await Product.insertMany(products, { ordered: false });
+  }
+
+  async bulkUpdateStatus(ids, status) {
+    return await Product.updateMany(
+      { _id: { $in: ids } },
+      { 
+        $set: { 
+          status, 
+          updatedAt: new Date() 
+        } 
+      }
+    );
+  }
+
+  async bulkDelete(ids) {
+    return await Product.deleteMany({ _id: { $in: ids } });
+  }
+
+  async bulkUpdateStock(updates) {
+    // updates = [{ id, quantity }, ...]
+    const bulkOps = updates.map(update => ({
+      updateOne: {
+        filter: { _id: update.id },
+        update: { 
+          $set: { 
+            quantity: update.quantity,
+            updatedAt: new Date()
+          } 
+        }
+      }
+    }));
+    return await Product.bulkWrite(bulkOps);
+  }
 }
 
 export default new ProductRepository();

@@ -5,7 +5,6 @@ const cartItemSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Product',
     required: true,
-    index: true
   },
   variation: {
     type: Object, // Structured variation info
@@ -33,13 +32,11 @@ const cartSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Customer',
     default: null,
-    index: true,
     sparse: true
   },
   guestId: {
     type: String,
     default: null,
-    index: true,
     sparse: true,
     validate: {
       validator: function (v) {

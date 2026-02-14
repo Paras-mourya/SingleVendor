@@ -6,7 +6,6 @@ const productSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
-      index: true,
     },
     description: {
       type: String,
@@ -16,13 +15,11 @@ const productSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ProductCategory',
       required: true,
-      index: true,
     },
     subCategory: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ProductSubCategory',
       required: false,
-      index: true,
     },
     brand: {
       type: String,
@@ -151,17 +148,14 @@ const productSchema = new mongoose.Schema(
       type: String,
       enum: ['active', 'inactive'],
       default: 'inactive',
-      index: true,
     },
     isActive: {
       type: Boolean,
       default: false,
-      index: true,
     },
     isFeatured: {
       type: Boolean,
       default: false,
-      index: true,
     },
     videoLink: {
       type: String,

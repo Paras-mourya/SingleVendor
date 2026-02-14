@@ -10,15 +10,17 @@ class EmployeeRepository extends BaseRepository {
   }
 
   async findByEmail(email, selectPassword = false) {
-    const query = Employee.findOne({ email }).populate('role');
+    const query = Employee.findOne({ email }).populate('role', 'name permissions isActive');
     if (selectPassword) {
       query.select('+password');
     }
-    return await query;
+    return await query.lean();
   }
 
   async findById(id) {
-    return await Employee.findById(id).populate('role');
+    return await Employee.findById(id)
+      .populate('role', 'name permissions isActive')
+      .lean();
   }
 
   async findAll(query = {}, limit = 10, cursor = null) {
@@ -38,7 +40,9 @@ class EmployeeRepository extends BaseRepository {
   }
 
   async updateById(id, updateData) {
-    return await Employee.findByIdAndUpdate(id, updateData, { new: true, runValidators: true }).populate('role');
+    return await Employee.findByIdAndUpdate(id, updateData, { new: true, runValidators: true })
+      .populate('role', 'name permissions isActive')
+      .lean();
   }
 
   async deleteById(id) {

@@ -21,7 +21,6 @@ const flashDealSchema = new mongoose.Schema({
   isPublished: {
     type: Boolean,
     default: false,
-    index: true
   },
   // Meta Data
   metaTitle: {

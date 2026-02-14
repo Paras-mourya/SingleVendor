@@ -20,4 +20,8 @@ const newsletterSchema = new mongoose.Schema(
 
 const Newsletter = mongoose.model('Newsletter', newsletterSchema);
 
+// Performance indexes for newsletter queries
+newsletterSchema.index({ status: 1 });
+newsletterSchema.index({ createdAt: -1 });
+
 export default Newsletter;

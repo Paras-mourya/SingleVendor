@@ -18,7 +18,9 @@ class FlashDealRepository extends BaseRepository {
   }
 
   async findByIdPopulated(id) {
-    return await this.model.findById(id).populate('products.product');
+    return await this.model.findById(id)
+      .populate('products.product', 'name price thumbnail discount discountType status isActive')
+      .lean();
   }
 
   async addProducts(dealId, productData) {
@@ -41,7 +43,7 @@ class FlashDealRepository extends BaseRepository {
       dealId,
       { $pull: { products: { product: productId } } },
       { new: true }
-    );
+    ).lean();
   }
 
   async togglePublish(dealId, isPublished) {
@@ -49,7 +51,7 @@ class FlashDealRepository extends BaseRepository {
       dealId,
       { isPublished },
       { new: true }
-    );
+    ).lean();
   }
 
   async toggleProductStatus(dealId, productId, isActive) {
@@ -57,7 +59,7 @@ class FlashDealRepository extends BaseRepository {
       { _id: dealId, 'products.product': productId },
       { $set: { 'products.$.isActive': isActive } },
       { new: true }
-    );
+    ).lean();
   }
 }
 

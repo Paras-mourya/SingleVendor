@@ -6,18 +6,18 @@ class SliderRepository {
   }
 
   async findById(id) {
-    return await Slider.findById(id);
+    return await Slider.findById(id).lean();
   }
 
   async findAll(filter = {}, sort = { createdAt: -1 }) {
-    return await Slider.find(filter).sort(sort);
+    return await Slider.find(filter).sort(sort).lean();
   }
 
   async update(id, data) {
     return await Slider.findByIdAndUpdate(id, data, {
       new: true,
       runValidators: true,
-    });
+    }).lean();
   }
 
   async delete(id) {
@@ -29,7 +29,7 @@ class SliderRepository {
       id,
       { published },
       { new: true }
-    );
+    ).lean();
   }
 }
 

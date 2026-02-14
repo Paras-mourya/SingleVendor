@@ -50,15 +50,21 @@ class BlogRepository extends BaseRepository {
   }
 
   async findBySlug(slug, populate = 'category') {
-    return await Blog.findOne({ slug }).populate(populate);
+    return await Blog.findOne({ slug })
+      .populate(populate, 'name slug status')
+      .lean();
   }
 
   async findById(id, populate = 'category') {
-    return await Blog.findById(id).populate(populate);
+    return await Blog.findById(id)
+      .populate(populate, 'name slug status')
+      .lean();
   }
 
   async updateById(id, updateData) {
-    return await Blog.findByIdAndUpdate(id, updateData, { new: true }).populate('category');
+    return await Blog.findByIdAndUpdate(id, updateData, { new: true })
+      .populate('category', 'name slug status')
+      .lean();
   }
 
   async deleteById(id) {

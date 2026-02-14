@@ -45,7 +45,7 @@ class AdminRepository {
   }
 
   async getByIdFull(id) {
-    return await Admin.findById(id);
+    return await Admin.findById(id).lean();
   }
 
   async count() {

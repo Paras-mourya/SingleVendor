@@ -19,7 +19,7 @@ class SiteContentRepository {
       {},
       { $set: data },
       { new: true, upsert: true, runValidators: true }
-    );
+    ).lean();
   }
 }
 
