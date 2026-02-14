@@ -10,7 +10,7 @@ class LoginSettingController {
     const settings = await LoginSettingService.getSettings();
     res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, settings));
   });
-
+ 
   updateSettings = catchAsync(async (req, res) => {
     const settings = await LoginSettingService.updateSettings(
       req.body,

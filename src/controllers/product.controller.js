@@ -185,7 +185,7 @@ class ProductController {
      */
   restockProduct = catchAsync(async (req, res) => {
     const product = await ProductService.restockProduct(req.params.id, req.body.quantity);
-
+ 
     AuditLogger.log('PRODUCT_RESTOCK', 'ADMIN', {
       productId: req.params.id,
       addedQuantity: req.body.quantity,
