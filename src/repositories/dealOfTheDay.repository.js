@@ -19,7 +19,7 @@ class DealOfTheDayRepository extends BaseRepository {
 
   async findByIdPopulated(id) {
     return await this.model.findById(id)
-      .populate('products.product', 'name price thumbnail discount discountType status isActive')
+      .populate('products.product', 'name price thumbnail status isActive')
       .lean();
   }
 

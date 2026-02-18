@@ -19,19 +19,22 @@ class FlashDealRepository extends BaseRepository {
 
   async findByIdPopulated(id) {
     return await this.model.findById(id)
-      .populate('products.product', 'name price thumbnail discount discountType status isActive')
+      .populate('products.product', 'name price thumbnail status isActive')
       .lean();
   }
 
   async addProducts(dealId, productData) {
-    // productData is array of { product: id, discount: X, discountType: Y }
+    // productData is array of { product: id }
     const deal = await this.model.findById(dealId);
     if (!deal) return null;
 
     productData.forEach(item => {
       const exists = deal.products.find(p => p.product.toString() === item.product.toString());
       if (!exists) {
-        deal.products.push(item);
+        deal.products.push({
+          product: item.product,
+          isActive: true
+        });
       }
     });
 

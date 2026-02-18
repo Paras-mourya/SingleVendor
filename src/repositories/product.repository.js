@@ -51,15 +51,20 @@ class ProductRepository {
     }, 900); // 15 minutes cache for product lists
   }
 
-  async findById(id) {
-    const cacheKey = `${PRODUCT_CACHE_PREFIX}${id}`;
+  async findById(id, selectFields = '', lean = true) {
+    const cacheKey = `${PRODUCT_CACHE_PREFIX}${id}:${selectFields || 'all'}`;
     
     return await MultiLayerCache.get(cacheKey, async () => {
-      return await Product.findById(id)
+      let query = Product.findById(id)
         .populate('category', 'name slug')
         .populate('subCategory', 'name slug')
-        .populate('attributes.attribute', 'name')
-        .lean();
+        .populate('attributes.attribute', 'name');
+      
+      if (selectFields) {
+        query = query.select(selectFields);
+      }
+      
+      return lean ? await query.lean() : await query;
     }, 1800); // 30 minutes cache for individual products
   }
 
@@ -75,7 +80,9 @@ class ProductRepository {
     
     // Invalidate cache after update
     if (result) {
-      await MultiLayerCache.del(`${PRODUCT_CACHE_PREFIX}${id}`);
+      await MultiLayerCache.del(`${PRODUCT_CACHE_PREFIX}${id}:*`);
+      await MultiLayerCache.delByPattern(`${PRODUCT_CACHE_PREFIX}bulk:*`);
+      await MultiLayerCache.delByPattern(`${PRODUCT_CACHE_PREFIX}stock:*`);
       await MultiLayerCache.delByPattern(`${PRODUCT_LIST_CACHE_PREFIX}*`);
     }
     
@@ -87,7 +94,9 @@ class ProductRepository {
     
     // Invalidate cache after delete
     if (result) {
-      await MultiLayerCache.del(`${PRODUCT_CACHE_PREFIX}${id}`);
+      await MultiLayerCache.del(`${PRODUCT_CACHE_PREFIX}${id}:*`);
+      await MultiLayerCache.delByPattern(`${PRODUCT_CACHE_PREFIX}bulk:*`);
+      await MultiLayerCache.delByPattern(`${PRODUCT_CACHE_PREFIX}stock:*`);
       await MultiLayerCache.delByPattern(`${PRODUCT_LIST_CACHE_PREFIX}*`);
     }
     
@@ -155,8 +164,67 @@ class ProductRepository {
   }
 
   /**
-     * Find products with stock below threshold
-     */
+   * Find multiple products by IDs with selective fields
+   * Optimized for cart operations to avoid N+1 queries
+   */
+  async findByIds(ids, selectFields = 'name thumbnail price stock isActive') {
+    if (!ids || ids.length === 0) return [];
+    
+    const cacheKey = `${PRODUCT_CACHE_PREFIX}bulk:${ids.join(',')}:${selectFields}`;
+    
+    return await MultiLayerCache.get(cacheKey, async () => {
+      return await Product.find({ _id: { $in: ids } })
+        .select(selectFields)
+        .lean();
+    }, 900); // 15 minutes cache for bulk product queries
+  }
+
+  /**
+   * Check stock for multiple products
+   * Optimized for cart operations
+   */
+  async checkStockBulk(productIds) {
+    if (!productIds || productIds.length === 0) return {};
+    
+    const cacheKey = `${PRODUCT_CACHE_PREFIX}stock:${productIds.join(',')}`;
+    
+    return await MultiLayerCache.get(cacheKey, async () => {
+      const products = await Product.find({ 
+        _id: { $in: productIds } 
+      })
+      .select('_id stock name')
+      .lean();
+      
+      const stockMap = {};
+      products.forEach(product => {
+        stockMap[product._id.toString()] = {
+          stock: product.stock,
+          name: product.name
+        };
+      });
+      
+      return stockMap;
+    }, 300); // 5 minutes cache for stock data
+  }
+
+  /**
+   * Invalidate product cache when stock changes
+   */
+  async invalidateStockCache(productIds) {
+    const patterns = [];
+    
+    productIds.forEach(id => {
+      patterns.push(`${PRODUCT_CACHE_PREFIX}${id}:*`);
+      patterns.push(`${PRODUCT_CACHE_PREFIX}stock:*`);
+    });
+    
+    patterns.push(`${PRODUCT_CACHE_PREFIX}bulk:*`);
+    patterns.push(`${PRODUCT_LIST_CACHE_PREFIX}*`);
+    
+    for (const pattern of patterns) {
+      await MultiLayerCache.delByPattern(pattern);
+    }
+  }
   async findLowStock(threshold = 10, filter = {}, sort = { quantity: 1 }, limit = 10, nextCursor = null) {
     const query = {
       ...filter,
