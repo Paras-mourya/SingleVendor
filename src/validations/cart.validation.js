@@ -22,6 +22,13 @@ const applyCoupon = z.object({
   })
 });
 
+const removeFromCart = z.object({
+  body: z.object({
+    productId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid Product ID'),
+    variationId: z.string().optional(),
+  }),
+});
+
 export default {
   addToCart,
   updateCartItem,

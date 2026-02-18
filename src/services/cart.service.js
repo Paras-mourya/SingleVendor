@@ -181,51 +181,6 @@ class CartService {
   }
 
   /**
-   * Apply Coupon to Cart
-   */
-  async applyCoupon({ userId, guestId, code }) {
-    const filter = userId ? { customerId: userId } : { guestId };
-    const cart = await CartRepository.findOne(filter);
-
-    if (!cart || cart.items.length === 0) {
-      throw new AppError('Cannot apply coupon to an empty cart', HTTP_STATUS.BAD_REQUEST);
-    }
-
-    // 1. Calculate current subtotal (with item discounts)
-    const summary = this._calculateCartTotals(cart);
-    const discountedSubtotal = summary.subtotalMRP - summary.storeDiscount;
-
-    // 2. Validate Coupon via CouponService
-    const CouponService = (await import('./coupon.service.js')).default;
-    const coupon = await CouponService.validateCoupon(code, userId, discountedSubtotal);
-
-    // 3. Attach Coupon to Cart
-    cart.appliedCoupon = coupon._id;
-    await cart.save();
-
-    // Invalidate summary cache
-    await this.invalidateCartCache(userId, guestId);
-
-    return await CartRepository.findById(cart._id);
-  }
-
-  /**
-   * Remove Coupon from Cart
-   */
-  async removeCoupon({ userId, guestId }) {
-    const filter = userId ? { customerId: userId } : { guestId };
-    const cart = await CartRepository.findOne(filter);
-
-    if (cart) {
-      cart.appliedCoupon = null;
-      await cart.save();
-      await this.invalidateCartCache(userId, guestId);
-    }
-
-    return cart;
-  }
-
-  /**
      * Clear Cart
      */
   async clearCart({ userId, guestId }) {
@@ -279,139 +234,20 @@ class CartService {
       if (!cart || !cart.items || cart.items.length === 0) {
         return {
           itemCount: 0,
-          subtotalMRP: 0,
-          storeDiscount: 0,
-          couponDiscount: 0,
-          shippingTotal: 0,
-          taxTotal: 0,
-          grandTotal: 0,
+          totalAmount: 0,
           items: []
         };
       }
 
-      // Fetch active clearance sale for calculations
-      const ClearanceSaleService = (await import('./clearanceSale.service.js')).default;
-      const activeSale = await ClearanceSaleService.getActiveSale();
-
-      return this._calculateCartTotals(cart, activeSale);
-    }, 300); // 5 minutes cache for cart summary
-  }
-
-  /**
-   * Internal calculation engine for Cart Summary
-   * @private
-   */
-  _calculateCartTotals(cart, activeSale = null) {
-    let subtotalMRP = 0;
-    let storeDiscount = 0;
-    let shippingTotal = 0;
-    let taxTotal = 0;
-
-    // Set to track products for non-multiplied shipping
-    const shippingTracked = new Set();
-
-    const items = cart.items.map(item => {
-      const p = item.product;
-      const qty = item.quantity;
-
-      // 1. MRP calculation
-      const mrp = p.price * qty;
-      subtotalMRP += mrp;
-
-      // 2. Store Discount (Product Discount + Clearance Sale)
-      // Layer 1: Normal Product Discount
-      let productDiscountAmount = 0;
-      if (p.discount > 0) {
-        if (p.discountType === 'percent') {
-          productDiscountAmount = (p.price * p.discount) / 100;
-        } else {
-          productDiscountAmount = p.discount;
-        }
-      }
-
-      // Layer 2: Clearance Sale Discount
-      let clearancePercent = 0;
-      if (activeSale && activeSale.isActive) {
-        const saleProduct = activeSale.products?.find(sp => sp.product?._id?.toString() === p._id?.toString() || sp.product?.toString() === p._id?.toString());
-        if (saleProduct && saleProduct.isActive) {
-          clearancePercent = activeSale.discountType === 'flat' ? activeSale.discountAmount : saleProduct.discount;
-        }
-      }
-      const clearanceDiscountAmount = (p.price * clearancePercent) / 100;
-
-      // BEST DEAL LOGIC: Pick the highest monetary discount (Product vs Clearance)
-      const bestItemDiscountAmount = Math.max(productDiscountAmount, clearanceDiscountAmount);
-
-      const totalItemStoreDiscount = bestItemDiscountAmount * qty;
-      storeDiscount += totalItemStoreDiscount;
-
-      // 3. Tax calculation (On Best Discounted Price)
-      const discountedPrice = p.price - bestItemDiscountAmount;
-      let itemTax = 0;
-      if (p.tax > 0) {
-        if (p.taxType === 'percent') {
-          itemTax = (discountedPrice * p.tax) / 100;
-        } else {
-          itemTax = p.tax;
-        }
-      }
-      taxTotal += (itemTax * qty);
-
-      // 4. Shipping calculation
-      let itemShipping = 0;
-      if (p.shippingCost > 0) {
-        if (p.multiplyShippingCost) {
-          itemShipping = p.shippingCost * qty;
-        } else if (!shippingTracked.has(p._id.toString())) {
-          itemShipping = p.shippingCost;
-          shippingTracked.add(p._id.toString());
-        }
-      }
-      shippingTotal += itemShipping;
+      const itemCount = cart.items.reduce((sum, item) => sum + item.quantity, 0);
+      const totalAmount = cart.items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
 
       return {
-        productId: p._id,
-        name: p.name,
-        thumbnail: p.thumbnail?.url,
-        quantity: qty,
-        unitPrice: p.price,
-        discountedPrice: discountedPrice,
-        tax: itemTax,
-        shipping: itemShipping,
-        totalItemPrice: (discountedPrice * qty)
+        itemCount,
+        totalAmount,
+        items: cart.items
       };
-    });
-
-    // 5. Coupon Discount
-    let couponDiscount = 0;
-    if (cart.appliedCoupon) {
-      const discountedSubtotal = subtotalMRP - storeDiscount;
-      const coupon = cart.appliedCoupon;
-
-      if (coupon.type === 'discount_on_purchase') {
-        if (coupon.discountType === 'percent') {
-          couponDiscount = (discountedSubtotal * coupon.discountAmount) / 100;
-        } else {
-          couponDiscount = coupon.discountAmount;
-        }
-      } else if (coupon.type === 'free_delivery') {
-        couponDiscount = 0; // Handled by zeroing shipping later if needed
-        shippingTotal = 0;
-      }
-    }
-
-    const grandTotal = Math.max(0, (subtotalMRP - storeDiscount - couponDiscount + shippingTotal + taxTotal));
-
-    return {
-      itemCount: items.reduce((sum, i) => sum + i.quantity, 0),
-      subtotalMRP,
-      storeDiscount,
-      couponDiscount,
-      shippingTotal,
-      taxTotal,
-      grandTotal,
-      items
-    };
+    }, 300); // 5 minutes cache for cart summary
   }
 }
 
