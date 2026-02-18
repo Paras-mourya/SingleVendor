@@ -2,14 +2,14 @@ import ReliabilityRepository from '../repositories/reliability.repository.js';
 import { deleteFromCloudinary } from '../utils/cloudinary.js';
 import AppError from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 
 class ReliabilityService {
   /**
    * Helper to invalidate public reliability cache
    */
   async invalidateCache() {
-    await Cache.delByPattern('response:/api/v1/company-reliability/public*');
+    await MultiLayerCache.delByPattern('response:/api/v1/company-reliability/public*');
   }
 
   async saveReliability(key, data) {

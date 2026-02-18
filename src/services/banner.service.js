@@ -2,14 +2,14 @@ import BannerRepository from '../repositories/banner.repository.js';
 import { deleteFromCloudinary } from '../utils/cloudinary.js';
 import AppError from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 
 class BannerService {
   /**
    * Helper to invalidate public banner cache
    */
   async invalidateCache() {
-    await Cache.delByPattern('response:/api/v1/banners/public*');
+    await MultiLayerCache.delByPattern('response:/api/v1/banners/public*');
   }
 
   async createBanner(bannerData) {

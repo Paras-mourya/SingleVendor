@@ -1,6 +1,6 @@
 import NewsletterRepository from '../repositories/newsletter.repository.js';
 import MailchimpService from '../services/mailchimp.service.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 import Logger from '../utils/logger.js';
 import AppError from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants.js';
@@ -10,8 +10,8 @@ const NEWSLETTER_RESPONSE_PATTERN = 'response:/api/v1/newsletter/admin*';
 
 class NewsletterService {
   async invalidateCache() {
-    await Cache.delByPattern(`${NEWSLETTER_CACHE_PREFIX}*`);
-    await Cache.delByPattern(NEWSLETTER_RESPONSE_PATTERN);
+    await MultiLayerCache.delByPattern(`${NEWSLETTER_CACHE_PREFIX}*`);
+    await MultiLayerCache.delByPattern(NEWSLETTER_RESPONSE_PATTERN);
     Logger.debug('Newsletter Cache Invalidated');
   }
 
@@ -41,7 +41,7 @@ class NewsletterService {
     const cacheKey = `${NEWSLETTER_CACHE_PREFIX}default`;
 
     if (isDefaultView) {
-      const cached = await Cache.get(cacheKey);
+      const cached = await MultiLayerCache.get(cacheKey);
       if (cached) {
         Logger.debug('Newsletter List Data Cache Hit');
         return cached;
@@ -53,7 +53,7 @@ class NewsletterService {
     const result = { subscribers, total, nextCursor, limit };
 
     if (isDefaultView) {
-      await Cache.set(cacheKey, result, 1800); // 30 min cache for default view
+      await MultiLayerCache.set(cacheKey, result, 1800); // 30 min cache for default view
     }
 
     return result;

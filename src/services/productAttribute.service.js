@@ -1,7 +1,7 @@
 import ProductAttributeRepository from '../repositories/productAttribute.repository.js';
 import AppError from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 
 const ATTRIBUTE_CACHE_KEY = 'product_attributes';
 
@@ -25,22 +25,22 @@ class ProductAttributeService {
     const { limit = 100, cursor = null } = query;
     // Simple caching for list without heavy filters
     const cacheKey = `${ATTRIBUTE_CACHE_KEY}:list:${limit}:${cursor || 'start'}`;
-    const cached = await Cache.get(cacheKey);
+    const cached = await MultiLayerCache.get(cacheKey);
     if (cached) return cached;
 
     const result = await ProductAttributeRepository.findAll({}, { name: 1 }, parseInt(limit), cursor);
-    await Cache.set(cacheKey, result, 3600); // 1 hour
+    await MultiLayerCache.set(cacheKey, result, 3600); // 1 hour
     return result;
   }
 
   async getPublicAttributes(query = {}) {
     const { limit = 100, cursor = null } = query;
     const cacheKey = `${ATTRIBUTE_CACHE_KEY}:public:${limit}:${cursor || 'start'}`;
-    const cached = await Cache.get(cacheKey);
+    const cached = await MultiLayerCache.get(cacheKey);
     if (cached) return cached;
 
     const result = await ProductAttributeRepository.findAll({ isActive: true }, { name: 1 }, parseInt(limit), cursor);
-    await Cache.set(cacheKey, result, 3600);
+    await MultiLayerCache.set(cacheKey, result, 3600);
     return result;
   }
 
@@ -75,10 +75,10 @@ class ProductAttributeService {
   }
 
   async invalidateCache() {
-    await Cache.delByPattern(`${ATTRIBUTE_CACHE_KEY}*`);
-    await Cache.delByPattern('response:/api/v1/product-attributes*');
+    await MultiLayerCache.delByPattern(`${ATTRIBUTE_CACHE_KEY}*`);
+    await MultiLayerCache.delByPattern('response:/api/v1/product-attributes*');
     // If an attribute changes, products that use them might need a refresh
-    await Cache.delByPattern('*product*');
+    await MultiLayerCache.delByPattern('*product*');
   }
 }
 

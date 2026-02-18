@@ -2,7 +2,7 @@ import PaymentSettingService from '../services/paymentSetting.service.js';
 import catchAsync from '../utils/catchAsync.js';
 import ApiResponse from '../utils/apiResponse.js';
 import { HTTP_STATUS } from '../constants.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 
 class PaymentSettingController {
   /**
@@ -26,7 +26,7 @@ class PaymentSettingController {
     );
 
     // Invalidate Cache
-    await Cache.delByPattern('*payment-settings*');
+    await MultiLayerCache.delByPattern('*payment-settings*');
 
     res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, settings, 'Payment settings updated successfully'));
   });

@@ -2,7 +2,7 @@ import SocialMediaChatService from '../services/socialMediaChat.service.js';
 import catchAsync from '../utils/catchAsync.js';
 import ApiResponse from '../utils/apiResponse.js';
 import { HTTP_STATUS } from '../constants.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 
 class SocialMediaChatController {
   getAllPlatforms = catchAsync(async (req, res) => {
@@ -24,7 +24,7 @@ class SocialMediaChatController {
     );
 
     // Invalidate Cache
-    await Cache.delByPattern('*social-media-chat*');
+    await MultiLayerCache.delByPattern('*social-media-chat*');
 
     res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, platform, 'Chat platform updated successfully'));
   });

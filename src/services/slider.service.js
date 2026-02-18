@@ -2,14 +2,14 @@ import SliderRepository from '../repositories/slider.repository.js';
 import { deleteFromCloudinary } from '../utils/cloudinary.js';
 import AppError from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 
 class SliderService {
   /**
    * Helper to invalidate public slider cache
    */
   async invalidateCache() {
-    await Cache.delByPattern('response:/api/v1/sliders/public*');
+    await MultiLayerCache.delByPattern('response:/api/v1/sliders/public*');
   }
 
   async createSlider(sliderData) {

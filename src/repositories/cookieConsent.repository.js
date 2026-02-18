@@ -1,5 +1,5 @@
 import CookieConsent from '../models/cookieConsent.model.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 import Logger from '../utils/logger.js';
 import mongoose from 'mongoose';
 
@@ -14,7 +14,7 @@ class CookieConsentRepository {
      */
   async getSettings() {
     // 1. Check Cache
-    const cached = await Cache.get(this.CACHE_KEY);
+    const cached = await MultiLayerCache.get(this.CACHE_KEY);
     if (cached) return cached;
 
     // 2. Database Fallback
@@ -34,7 +34,7 @@ class CookieConsentRepository {
     }
 
     // 3. Set Cache
-    await Cache.set(this.CACHE_KEY, settings, this.CACHE_TTL);
+    await MultiLayerCache.set(this.CACHE_KEY, settings, this.CACHE_TTL);
 
     return settings;
   }
@@ -59,7 +59,7 @@ class CookieConsentRepository {
     ).lean();
 
     // Invalidate Cache
-    await Cache.del(this.CACHE_KEY);
+    await MultiLayerCache.del(this.CACHE_KEY);
 
     return updated;
   }

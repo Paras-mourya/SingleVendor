@@ -1,5 +1,6 @@
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
+import Logger from '../utils/logger.js';
 
 const options = {
   definition: {
@@ -22,7 +23,7 @@ let specs;
 try {
   specs = swaggerJsdoc(options);
 } catch (error) {
-  console.error('❌ Swagger JSDoc Initialization Failed:', error.message);
+  Logger.error('Swagger JSDoc Initialization Failed', { error: error.message, stack: error.stack });
   // Create a minimal spec so the app doesn't crash
   specs = { openapi: '3.0.0', info: { title: 'Emergency Docs', version: '0.0.0' }, paths: {} };
 }

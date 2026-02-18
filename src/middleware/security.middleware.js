@@ -4,11 +4,14 @@ import hpp from 'hpp';
 import rateLimit from 'express-rate-limit';
 import cors from 'cors';
 import AppError from '../utils/AppError.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 import Logger from '../utils/logger.js';
 import { HTTP_STATUS } from '../constants.js';
 
 import env from '../config/env.js';
 import systemConfig from '../utils/systemConfig.js';
+
+const RATE_LIMIT_CACHE_PREFIX = 'rateLimit:';
 
 /**
  * Enterprise Security Middleware Configuration
@@ -114,25 +117,49 @@ const securityMiddleware = (app) => {
   // 4. Prevent parameter pollution (e.g., ?id=1&id=2)
   app.use(hpp());
 
-  // 5. Tiered Rate Limiting (Enterprise Scaling Pattern)
-  const createLimiter = (max, windowMinutes, message) => rateLimit({
-    max,
-    windowMs: windowMinutes * 60 * 1000,
-    message: {
-      status: HTTP_STATUS.TOO_MANY_REQUESTS,
-      message: message || 'Too many requests, please try again later.',
-      code: 'RATE_LIMIT_EXCEEDED'
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-    validate: { trustProxy: false },
-  });
+  // 5. Tiered Rate Limiting with Multi-Layer Cache (Enterprise Scaling Pattern)
+  const createCachedLimiter = (max, windowMinutes, message) => {
+    return rateLimit({
+      max,
+      windowMs: windowMinutes * 60 * 1000,
+      message: {
+        status: HTTP_STATUS.TOO_MANY_REQUESTS,
+        message: message || 'Too many requests, please try again later.',
+        code: 'RATE_LIMIT_EXCEEDED'
+      },
+      standardHeaders: true,
+      legacyHeaders: false,
+      validate: { trustProxy: false },
+      // Add custom store with caching for better performance
+      store: {
+        init: () => {},
+        increment: async (key) => {
+          const cacheKey = `${RATE_LIMIT_CACHE_PREFIX}${key}`;
+          const current = await MultiLayerCache.get(cacheKey, async () => 0, 60);
+          const newCount = current + 1;
+          await MultiLayerCache.set(cacheKey, newCount, windowMinutes * 60);
+          return { totalHits: newCount };
+        },
+        decrement: async (key) => {
+          const cacheKey = `${RATE_LIMIT_CACHE_PREFIX}${key}`;
+          const current = await MultiLayerCache.get(cacheKey, async () => 0, 60);
+          if (current > 0) {
+            await MultiLayerCache.set(cacheKey, current - 1, windowMinutes * 60);
+          }
+        },
+        resetKey: async (key) => {
+          const cacheKey = `${RATE_LIMIT_CACHE_PREFIX}${key}`;
+          await MultiLayerCache.del(cacheKey);
+        }
+      }
+    });
+  };
 
   // General API Limiter (1000 requests per 15 minutes per IP)
-  const apiLimiter = createLimiter(1000, 15, 'General API rate limit exceeded.');
+  const apiLimiter = createCachedLimiter(1000, 15, 'General API rate limit exceeded.');
 
-  // Auth Limiter (Brute force protection: 5 attempts per 15 minutes per IP)
-  const authLimiter = createLimiter(10, 15, 'Too many login attempts. Please try again in 15 minutes.');
+  // Auth Limiter (Brute force protection: 10 attempts per 15 minutes per IP)
+  const authLimiter = createCachedLimiter(10, 15, 'Too many login attempts. Please try again in 15 minutes.');
 
   app.use('/api', apiLimiter);
   app.use('/api/v1/admin/auth', authLimiter);

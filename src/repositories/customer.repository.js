@@ -1,40 +1,83 @@
 import Customer from '../models/customer.model.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 import Logger from '../utils/logger.js';
+
+const CUSTOMER_CACHE_PREFIX = 'customer:';
+const CUSTOMER_LIST_CACHE_PREFIX = 'customer:list:';
 
 class CustomerRepository {
   async create(customerData, options = {}) {
     Logger.debug('DB: Creating customer(s)', { customerData });
     const docs = await Customer.create(Array.isArray(customerData) ? customerData : [customerData], options);
-    return Array.isArray(customerData) ? docs : docs[0];
+    const result = Array.isArray(customerData) ? docs : docs[0];
+    
+    // Invalidate customer caches
+    if (Array.isArray(result)) {
+      for (const customer of result) {
+        await MultiLayerCache.del(`${CUSTOMER_CACHE_PREFIX}${customer._id}`);
+        await MultiLayerCache.del(`${CUSTOMER_CACHE_PREFIX}email:${customer.email}`);
+      }
+    } else {
+      await MultiLayerCache.del(`${CUSTOMER_CACHE_PREFIX}${result._id}`);
+      await MultiLayerCache.del(`${CUSTOMER_CACHE_PREFIX}email:${result.email}`);
+    }
+    
+    await MultiLayerCache.delByPattern(`${CUSTOMER_LIST_CACHE_PREFIX}*`);
+    
+    return result;
   }
 
   async findByEmail(email, selectFields = '', lean = false) {
-    Logger.debug(`DB: Finding customer by email: ${email}`);
-    const query = Customer.findOne({ email });
-    if (selectFields) {
-      query.select(selectFields);
-    }
-    if (lean) {
-      query.lean();
-    }
-    return await query;
+    const cacheKey = `${CUSTOMER_CACHE_PREFIX}email:${email}:${selectFields}:${lean}`;
+    
+    return await MultiLayerCache.get(cacheKey, async () => {
+      Logger.debug(`DB: Finding customer by email: ${email}`);
+      const query = Customer.findOne({ email });
+      if (selectFields) {
+        query.select(selectFields);
+      }
+      if (lean) {
+        query.lean();
+      }
+      return await query;
+    }, 1800); // 30 minutes cache for customer email lookups
   }
 
   async findById(id, selectFields = '', lean = false) {
-    Logger.debug(`DB: Finding customer by ID: ${id}`);
-    const query = Customer.findById(id);
-    if (selectFields) {
-      query.select(selectFields);
-    }
-    if (lean) {
-      query.lean();
-    }
-    return await query;
+    const cacheKey = `${CUSTOMER_CACHE_PREFIX}${id}:${selectFields}:${lean}`;
+    
+    return await MultiLayerCache.get(cacheKey, async () => {
+      Logger.debug(`DB: Finding customer by ID: ${id}`);
+      const query = Customer.findById(id);
+      if (selectFields) {
+        query.select(selectFields);
+      }
+      if (lean) {
+        query.lean();
+      }
+      return await query;
+    }, 1800); // 30 minutes cache for customer ID lookups
   }
 
   async updateById(id, updateData, options = { new: true }) {
     Logger.debug(`DB: Updating customer by ID: ${id}`, { updateData });
-    return await Customer.findByIdAndUpdate(id, updateData, options);
+    
+    // Get existing customer for cache invalidation
+    const existingCustomer = await Customer.findById(id);
+    
+    const result = await Customer.findByIdAndUpdate(id, updateData, options);
+    
+    // Invalidate customer caches
+    await MultiLayerCache.delByPattern(`${CUSTOMER_CACHE_PREFIX}${id}*`);
+    if (existingCustomer?.email) {
+      await MultiLayerCache.delByPattern(`${CUSTOMER_CACHE_PREFIX}email:${existingCustomer.email}*`);
+    }
+    if (updateData.email) {
+      await MultiLayerCache.delByPattern(`${CUSTOMER_CACHE_PREFIX}email:${updateData.email}*`);
+    }
+    await MultiLayerCache.delByPattern(`${CUSTOMER_LIST_CACHE_PREFIX}*`);
+    
+    return result;
   }
 
   async findAll(filter = {}, sort = { createdAt: -1 }, limit = 10, nextCursor = null, selectFields = '') {

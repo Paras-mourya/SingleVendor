@@ -1,7 +1,7 @@
 import CouponRepository from '../repositories/coupon.repository.js';
 import AppError from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 
 class CouponService {
   /**
@@ -136,7 +136,7 @@ class CouponService {
   }
 
   async invalidateCache() {
-    await Cache.delByPattern('*coupon*');
+    await MultiLayerCache.delByPattern('*coupon*');
   }
 }
 

@@ -8,7 +8,7 @@ import env from '../config/env.js';
 import Logger from '../utils/logger.js';
 import EmailService from './email.service.js';
 import crypto from 'crypto';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 import { comparePassword } from '../utils/security.js';
 
 import { uploadToCloudinary, deleteFromCloudinary } from '../utils/cloudinary.js';
@@ -18,11 +18,11 @@ const ADMIN_RESPONSE_CACHE_PREFIX = 'response:admin:';
 
 class AdminService {
   /**
-   * Helper to invalidate all admin caches
+   * Helper to invalidate all admin caches (Write-Through Pattern)
    */
   async invalidateAdminCache(adminId) {
-    await Cache.del(`${ADMIN_CACHE_PREFIX}${adminId}`);
-    await Cache.delByPattern(`${ADMIN_RESPONSE_CACHE_PREFIX}${adminId}:*`);
+    await MultiLayerCache.del(`${ADMIN_CACHE_PREFIX}${adminId}`);
+    await MultiLayerCache.delByPattern(`${ADMIN_RESPONSE_CACHE_PREFIX}${adminId}:*`);
     Logger.debug(`Admin Cache Invalidated: ${adminId}`);
   }
   /**

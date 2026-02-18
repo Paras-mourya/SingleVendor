@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { uploadToCloudinary, deleteFromCloudinary } from './cloudinary.js';
 import Logger from './logger.js';
-import fs from 'fs';
+import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import { v4 as uuidv4 } from 'uuid';
@@ -25,7 +25,7 @@ export const uploadImageFromUrl = async (url, folder = 'products') => {
     const fileName = `${uuidv4()}${path.extname(new URL(url).pathname) || '.jpg'}`;
     tempFilePath = path.join(os.tmpdir(), fileName);
 
-    fs.writeFileSync(tempFilePath, buffer);
+    await fs.writeFile(tempFilePath, buffer);
 
     // Upload using existing cloudinary utility (mocking a file object)
     const result = await uploadToCloudinary({ path: tempFilePath }, folder);
@@ -38,8 +38,12 @@ export const uploadImageFromUrl = async (url, folder = 'products') => {
     Logger.error('Image Upload from URL Failed', { url, error: error.message });
     throw new Error(`Failed to upload image from URL: ${url}`);
   } finally {
-    if (tempFilePath && fs.existsSync(tempFilePath)) {
-      fs.unlinkSync(tempFilePath);
+    if (tempFilePath) {
+      try {
+        await fs.unlink(tempFilePath);
+      } catch (error) {
+        // File might already be deleted
+      }
     }
   }
 };

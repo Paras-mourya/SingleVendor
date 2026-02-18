@@ -1,4 +1,8 @@
 import Product from '../models/product.model.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
+
+const PRODUCT_CACHE_PREFIX = 'product:';
+const PRODUCT_LIST_CACHE_PREFIX = 'product:list:';
 
 class ProductRepository {
   async create(data) {
@@ -6,48 +10,57 @@ class ProductRepository {
   }
 
   async findAll(filter = {}, sort = { createdAt: -1 }, limit = 10, nextCursor = null) {
-    const query = { ...filter };
+    // Generate cache key based on filter, sort, limit, and cursor
+    const cacheKey = `${PRODUCT_LIST_CACHE_PREFIX}${JSON.stringify({ filter, sort, limit, nextCursor })}`;
+    
+    return await MultiLayerCache.get(cacheKey, async () => {
+      const query = { ...filter };
 
-    // Cursor Pagination Logic
-    if (nextCursor) {
-      const [cursorDate, cursorId] = nextCursor.split('_');
-      // For descending createdAt sort
-      query.$or = [
-        { createdAt: { $lt: new Date(Number(cursorDate)) } },
-        {
-          createdAt: new Date(Number(cursorDate)),
-          _id: { $lt: cursorId }
-        }
-      ];
-    }
+      // Cursor Pagination Logic
+      if (nextCursor) {
+        const [cursorDate, cursorId] = nextCursor.split('_');
+        // For descending createdAt sort
+        query.$or = [
+          { createdAt: { $lt: new Date(Number(cursorDate)) } },
+          {
+            createdAt: new Date(Number(cursorDate)),
+            _id: { $lt: cursorId }
+          }
+        ];
+      }
 
-    const products = await Product.find(query)
-      .sort(sort)
-      .limit(limit + 1) // Fetch one extra to check if there's a next page
-      .populate('category', 'name slug')
-      .populate('subCategory', 'name slug')
-      .populate('attributes.attribute', 'name')
-      .lean();
+      const products = await Product.find(query)
+        .sort(sort)
+        .limit(limit + 1) // Fetch one extra to check if there's a next page
+        .populate('category', 'name slug')
+        .populate('subCategory', 'name slug')
+        .populate('attributes.attribute', 'name')
+        .lean();
 
-    const hasNextPage = products.length > limit;
-    const items = hasNextPage ? products.slice(0, limit) : products;
+      const hasNextPage = products.length > limit;
+      const items = hasNextPage ? products.slice(0, limit) : products;
 
-    let lastItem = items[items.length - 1];
-    let newCursor = hasNextPage ? `${new Date(lastItem.createdAt).getTime()}_${lastItem._id}` : null;
+      let lastItem = items[items.length - 1];
+      let newCursor = hasNextPage ? `${new Date(lastItem.createdAt).getTime()}_${lastItem._id}` : null;
 
-    return {
-      items,
-      nextCursor: newCursor,
-      hasNextPage
-    };
+      return {
+        items,
+        nextCursor: newCursor,
+        hasNextPage
+      };
+    }, 900); // 15 minutes cache for product lists
   }
 
   async findById(id) {
-    return await Product.findById(id)
-      .populate('category', 'name slug')
-      .populate('subCategory', 'name slug')
-      .populate('attributes.attribute', 'name')
-      .lean();
+    const cacheKey = `${PRODUCT_CACHE_PREFIX}${id}`;
+    
+    return await MultiLayerCache.get(cacheKey, async () => {
+      return await Product.findById(id)
+        .populate('category', 'name slug')
+        .populate('subCategory', 'name slug')
+        .populate('attributes.attribute', 'name')
+        .lean();
+    }, 1800); // 30 minutes cache for individual products
   }
 
   async findOne(filter) {
@@ -55,14 +68,30 @@ class ProductRepository {
   }
 
   async update(id, data) {
-    return await Product.findByIdAndUpdate(id, data, {
+    const result = await Product.findByIdAndUpdate(id, data, {
       new: true,
       runValidators: true,
     }).lean();
+    
+    // Invalidate cache after update
+    if (result) {
+      await MultiLayerCache.del(`${PRODUCT_CACHE_PREFIX}${id}`);
+      await MultiLayerCache.delByPattern(`${PRODUCT_LIST_CACHE_PREFIX}*`);
+    }
+    
+    return result;
   }
 
   async delete(id) {
-    return await Product.findByIdAndDelete(id);
+    const result = await Product.findByIdAndDelete(id);
+    
+    // Invalidate cache after delete
+    if (result) {
+      await MultiLayerCache.del(`${PRODUCT_CACHE_PREFIX}${id}`);
+      await MultiLayerCache.delByPattern(`${PRODUCT_LIST_CACHE_PREFIX}*`);
+    }
+    
+    return result;
   }
 
   async count(filter = {}) {
@@ -73,40 +102,45 @@ class ProductRepository {
      * Optimized find for Public Homepage (Active only)
      */
   async findActive(filter = {}, sort = { createdAt: -1 }, limit = 12, nextCursor = null) {
-    const query = {
-      ...filter,
-      status: 'active',
-      isActive: true
-    };
+    // Generate cache key based on filter, sort, limit, and cursor
+    const cacheKey = `${PRODUCT_LIST_CACHE_PREFIX}active:${JSON.stringify({ filter, sort, limit, nextCursor })}`;
+    
+    return await MultiLayerCache.get(cacheKey, async () => {
+      const query = {
+        ...filter,
+        status: 'active',
+        isActive: true
+      };
 
-    if (nextCursor) {
-      const [cursorDate, cursorId] = nextCursor.split('_');
-      query.$or = [
-        { createdAt: { $lt: new Date(Number(cursorDate)) } },
-        {
-          createdAt: new Date(Number(cursorDate)),
-          _id: { $lt: cursorId }
-        }
-      ];
-    }
+      if (nextCursor) {
+        const [cursorDate, cursorId] = nextCursor.split('_');
+        query.$or = [
+          { createdAt: { $lt: new Date(Number(cursorDate)) } },
+          {
+            createdAt: new Date(Number(cursorDate)),
+            _id: { $lt: cursorId }
+          }
+        ];
+      }
 
-    const products = await Product.find(query)
-      .select('name price thumbnail discount discountType status isActive isFeatured quantity unit colors attributes variations createdAt')
-      .sort(sort)
-      .limit(limit + 1)
-      .lean();
+      const products = await Product.find(query)
+        .select('name price thumbnail discount discountType status isActive isFeatured quantity unit colors attributes variations createdAt')
+        .sort(sort)
+        .limit(limit + 1)
+        .lean();
 
-    const hasNextPage = products.length > limit;
-    const items = hasNextPage ? products.slice(0, limit) : products;
+      const hasNextPage = products.length > limit;
+      const items = hasNextPage ? products.slice(0, limit) : products;
 
-    let lastItem = items[items.length - 1];
-    let newCursor = hasNextPage ? `${new Date(lastItem.createdAt).getTime()}_${lastItem._id}` : null;
+      let lastItem = items[items.length - 1];
+      let newCursor = hasNextPage ? `${new Date(lastItem.createdAt).getTime()}_${lastItem._id}` : null;
 
-    return {
-      items,
-      nextCursor: newCursor,
-      hasNextPage
-    };
+      return {
+        items,
+        nextCursor: newCursor,
+        hasNextPage
+      };
+    }, 600); // 10 minutes cache for active products (homepage)
   }
 
   /**

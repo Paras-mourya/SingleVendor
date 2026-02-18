@@ -2,7 +2,7 @@ import SocialLoginService from '../services/socialLogin.service.js';
 import catchAsync from '../utils/catchAsync.js';
 import ApiResponse from '../utils/apiResponse.js';
 import { HTTP_STATUS } from '../constants.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 import AuditLogger from '../utils/audit.js';
 
 class SocialLoginController {
@@ -25,7 +25,7 @@ class SocialLoginController {
     );
 
     // Invalidate Cache
-    await Cache.delByPattern('*social-login*');
+    await MultiLayerCache.delByPattern('*social-login*');
 
     // Audit Log
     AuditLogger.log('UPDATE_SOCIAL_LOGIN_PROVIDER', 'THIRD_PARTY_CONFIG', {

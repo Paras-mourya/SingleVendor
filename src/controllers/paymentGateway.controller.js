@@ -2,7 +2,7 @@ import PaymentGatewayService from '../services/paymentGateway.service.js';
 import catchAsync from '../utils/catchAsync.js';
 import ApiResponse from '../utils/apiResponse.js';
 import { HTTP_STATUS } from '../constants.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 import AuditLogger from '../utils/audit.js';
 
 class PaymentGatewayController {
@@ -28,7 +28,7 @@ class PaymentGatewayController {
     );
 
     // Invalidate Cache
-    await Cache.delByPattern('*payment-gateways*');
+    await MultiLayerCache.delByPattern('*payment-gateways*');
 
     // Audit Log
     AuditLogger.log('UPDATE_PAYMENT_GATEWAY', 'THIRD_PARTY_CONFIG', {

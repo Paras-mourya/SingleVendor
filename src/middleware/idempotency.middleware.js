@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 import ApiResponse from '../utils/apiResponse.js';
 import { HTTP_STATUS } from '../constants.js';
 import Logger from '../utils/logger.js';
@@ -34,7 +34,7 @@ const lockRequest = (ttl = 5) => {
 
     try {
       // 2. Check if lock exists in Redis
-      const isLocked = await Cache.get(lockKey);
+      const isLocked = await MultiLayerCache.get(lockKey);
 
       if (isLocked) {
         Logger.warn(`Double-hit prevented: ${lockKey}`);
@@ -49,7 +49,7 @@ const lockRequest = (ttl = 5) => {
 
       // 3. Set lock for TTL (seconds)
       // Implementation: We use a simple value '1' to indicate locked
-      await Cache.set(lockKey, 'locked', ttl);
+      await MultiLayerCache.set(lockKey, 'locked', ttl);
 
       // 4. Auto-cleanup lock after response completes (success or error)
       let cleanupDone = false;
@@ -58,7 +58,7 @@ const lockRequest = (ttl = 5) => {
         cleanupDone = true;
 
         try {
-          await Cache.del(lockKey);
+          await MultiLayerCache.del(lockKey);
           Logger.debug(`Lock released: ${lockKey}`);
         } catch (err) {
           Logger.error('Lock cleanup failed', { error: err.message });

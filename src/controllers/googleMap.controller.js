@@ -2,7 +2,7 @@ import GoogleMapService from '../services/googleMap.service.js';
 import catchAsync from '../utils/catchAsync.js';
 import ApiResponse from '../utils/apiResponse.js';
 import { HTTP_STATUS } from '../constants.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 import AuditLogger from '../utils/audit.js';
 
 class GoogleMapController {
@@ -24,7 +24,7 @@ class GoogleMapController {
     );
 
     // Invalidate Cache
-    await Cache.delByPattern('*google-map-apis*');
+    await MultiLayerCache.delByPattern('*google-map-apis*');
 
     // Audit Log
     AuditLogger.log('UPDATE_GOOGLE_MAP_SETTINGS', 'THIRD_PARTY_CONFIG', {

@@ -48,10 +48,7 @@ redisClient.on('connect', () => {
 redisClient.on('ready', async () => {
   Logger.info('REDIS_READY');
 
-  /* 
-  // ENTERPRISE DELETION PREVENTION: COMMENTED OUT FOR DEPLOYMENT SAFETY
-  // The following block attempts to enforce 'noeviction' for BullMQ safety.
-  // Commented out because programmatic CONFIG commands are restricted on some cloud providers.
+  // ENTERPRISE DELETION PREVENTION: Enforce 'noeviction' for BullMQ safety
   try {
     const policy = await redisClient.config('GET', 'maxmemory-policy');
     const currentPolicy = (Array.isArray(policy) && policy.length >= 2) ? policy[1] : 'unknown';
@@ -62,13 +59,15 @@ redisClient.on('ready', async () => {
         await redisClient.config('SET', 'maxmemory-policy', 'noeviction');
         Logger.info('Redis policy updated to "noeviction"');
       } catch (setError) {
-        Logger.error('Permission Restricted: Please manually set maxmemory-policy to noeviction in console.');
+        Logger.error('Permission Restricted: Please manually set maxmemory-policy to noeviction in Redis console.');
+        Logger.error('Run: CONFIG SET maxmemory-policy noeviction');
       }
+    } else {
+      Logger.info('✅ Redis eviction policy is correctly set to "noeviction"');
     }
   } catch (err) {
-    Logger.debug('Redis CONFIG restricted.');
+    Logger.warn('Redis CONFIG command restricted. Please manually set: CONFIG SET maxmemory-policy noeviction');
   }
-  */
 });
 
 redisClient.on('reconnecting', (delay) => {

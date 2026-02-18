@@ -1,7 +1,7 @@
 import SupportTicketRepository from '../repositories/supportTicket.repository.js';
 import EmailService from './email.service.js';
 import { uploadToCloudinary } from '../utils/cloudinary.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 import AppError from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants.js';
 import Logger from '../utils/logger.js';
@@ -24,8 +24,8 @@ class SupportTicketService {
     });
 
     // Invalidate Caches
-    await Cache.delByPattern(`response:customer:${customerId}:*support-tickets*`);
-    await Cache.delByPattern('response:admin:*support-tickets*');
+    await MultiLayerCache.delByPattern(`response:customer:${customerId}:*support-tickets*`);
+    await MultiLayerCache.delByPattern('response:admin:*support-tickets*');
 
     Logger.info(`Support ticket submitted: ${ticket.ticketId} by Customer: ${customerId}`);
     return ticket;
@@ -125,8 +125,8 @@ class SupportTicketService {
     }
 
     // Invalidate Caches
-    await Cache.delByPattern(`response:customer:${ticket.customer._id}:*support-tickets*`);
-    await Cache.delByPattern('response:admin:*support-tickets*');
+    await MultiLayerCache.delByPattern(`response:customer:${ticket.customer._id}:*support-tickets*`);
+    await MultiLayerCache.delByPattern('response:admin:*support-tickets*');
 
     return ticket;
   }

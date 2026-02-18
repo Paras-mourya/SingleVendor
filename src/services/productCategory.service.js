@@ -2,7 +2,7 @@ import ProductCategoryRepository from '../repositories/productCategory.repositor
 import ProductSubCategoryRepository from '../repositories/productSubCategory.repository.js';
 import AppError from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 import Logger from '../utils/logger.js';
 import { uploadToCloudinary, deleteFromCloudinary } from '../utils/cloudinary.js';
 
@@ -11,10 +11,10 @@ const CATEGORY_RESPONSE_PATTERN = 'response:/api/v1/categories*';
 
 class ProductCategoryService {
   async invalidateCache() {
-    await Cache.del(CATEGORY_CACHE_KEY);
-    await Cache.delByPattern(CATEGORY_RESPONSE_PATTERN);
+    await MultiLayerCache.del(CATEGORY_CACHE_KEY);
+    await MultiLayerCache.delByPattern(CATEGORY_RESPONSE_PATTERN);
     // Any category change should also refresh product listings
-    await Cache.delByPattern('*product*');
+    await MultiLayerCache.delByPattern('*product*');
     Logger.debug('Product Category and Product Caches Invalidated');
   }
 
@@ -44,7 +44,7 @@ class ProductCategoryService {
 
   async getAllCategories(filter = {}) {
     // Try data cache first
-    const cached = await Cache.get(CATEGORY_CACHE_KEY);
+    const cached = await MultiLayerCache.get(CATEGORY_CACHE_KEY);
     if (cached && Object.keys(filter).length === 0) {
       Logger.debug('Product Categories Data Cache Hit');
       return cached;
@@ -53,7 +53,7 @@ class ProductCategoryService {
     const categories = await ProductCategoryRepository.findAll(filter);
 
     if (Object.keys(filter).length === 0) {
-      await Cache.set(CATEGORY_CACHE_KEY, categories, 3600);
+      await MultiLayerCache.set(CATEGORY_CACHE_KEY, categories, 3600);
     }
 
     return categories;
@@ -97,8 +97,8 @@ class ProductCategoryService {
 
     await this.invalidateCache();
     // Also invalidate subcategory cache since they are deleted/linked
-    await Cache.delByPattern('product:subcategories:*');
-    await Cache.delByPattern('response:/api/v1/subcategories*');
+    await MultiLayerCache.delByPattern('product:subcategories:*');
+    await MultiLayerCache.delByPattern('response:/api/v1/subcategories*');
 
     return true;
   }

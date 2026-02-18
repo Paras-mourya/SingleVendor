@@ -1,14 +1,14 @@
 import SocialMediaRepository from '../repositories/socialMedia.repository.js';
 import AppError from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 
 class SocialMediaService {
   /**
    * Helper to invalidate public social media cache
    */
   async invalidateCache() {
-    await Cache.delByPattern('response:/api/v1/social-media/public*');
+    await MultiLayerCache.delByPattern('response:/api/v1/social-media/public*');
   }
 
   async saveLink(platform, link) {

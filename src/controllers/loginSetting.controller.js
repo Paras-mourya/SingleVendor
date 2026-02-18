@@ -2,7 +2,7 @@ import LoginSettingService from '../services/loginSetting.service.js';
 import catchAsync from '../utils/catchAsync.js';
 import ApiResponse from '../utils/apiResponse.js';
 import { HTTP_STATUS } from '../constants.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 import AuditLogger from '../utils/audit.js';
 
 class LoginSettingController {
@@ -19,7 +19,7 @@ class LoginSettingController {
     );
 
     // Invalidate relevant cache if any
-    await Cache.delByPattern('*login-settings*');
+    await MultiLayerCache.delByPattern('*login-settings*');
 
     // Audit Log
     AuditLogger.log('UPDATE_LOGIN_SETTINGS', 'SYSTEM_CONFIG', {

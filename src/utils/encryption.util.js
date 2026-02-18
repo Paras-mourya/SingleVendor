@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import env from '../config/env.js';
+import Logger from './logger.js';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
@@ -50,7 +51,7 @@ export const decrypt = (encryptedText) => {
 
     return decrypted;
   } catch (error) {
-    console.error('Decryption failed:', error);
+    Logger.error('Decryption failed', { error: error.message, stack: error.stack });
     return null;
   }
 };

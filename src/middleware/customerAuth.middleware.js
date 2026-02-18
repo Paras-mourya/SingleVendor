@@ -3,8 +3,11 @@ import CustomerRepository from '../repositories/customer.repository.js';
 import AppError from '../utils/AppError.js';
 import { HTTP_STATUS, ERROR_MESSAGES } from '../constants.js';
 import RequestContext from '../utils/context.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 import env from '../config/env.js';
 import Logger from '../utils/logger.js';
+
+const AUTH_CACHE_PREFIX = 'auth:customer:';
 
 /**
  * Protect customer routes - Only authenticated and verified customers allowed
@@ -26,7 +29,13 @@ export const protectCustomer = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token, env.JWT_SECRET);
 
-    const customer = await CustomerRepository.findById(decoded.id);
+    // Cache customer authentication data for faster login validation
+    const cacheKey = `${AUTH_CACHE_PREFIX}${decoded.id}:${decoded.version}`;
+    
+    const customer = await MultiLayerCache.get(cacheKey, async () => {
+      return await CustomerRepository.findById(decoded.id);
+    }, 1800); // 30 minutes cache for auth data
+    
     if (!customer) {
       Logger.warn(`Access denied: Customer ${decoded.id} not found in DB`);
       throw new AppError('Customer not found or unauthorized', HTTP_STATUS.UNAUTHORIZED, 'CUSTOMER_NOT_FOUND');
@@ -34,6 +43,9 @@ export const protectCustomer = async (req, res, next) => {
 
     // Advanced: Token Versioning Check (Instant Revocation)
     if (decoded.version !== customer.tokenVersion) {
+      // Invalidate cache on version mismatch
+      await MultiLayerCache.del(cacheKey);
+      
       Logger.security('SESSION_REVOKED', {
         customerId: customer._id,
         tokenVersion: decoded.version,

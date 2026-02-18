@@ -1,7 +1,7 @@
 import BlogCategoryRepository from '../repositories/blogCategory.repository.js';
 import AppError from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 import Logger from '../utils/logger.js';
 
 const BLOG_CATEGORY_CACHE_KEY = 'blog:categories:all';
@@ -9,8 +9,8 @@ const BLOG_CATEGORY_RESPONSE_PATTERN = 'response:/api/v1/blog-categories*';
 
 class BlogCategoryService {
   async invalidateCache() {
-    await Cache.del(BLOG_CATEGORY_CACHE_KEY);
-    await Cache.delByPattern(BLOG_CATEGORY_RESPONSE_PATTERN);
+    await MultiLayerCache.del(BLOG_CATEGORY_CACHE_KEY);
+    await MultiLayerCache.delByPattern(BLOG_CATEGORY_RESPONSE_PATTERN);
     Logger.debug('Blog Category Cache Invalidated');
   }
 
@@ -28,7 +28,7 @@ class BlogCategoryService {
   async getAllCategories(filter = {}) {
     // Try data cache first if no filters are applied
     if (Object.keys(filter).length === 0) {
-      const cached = await Cache.get(BLOG_CATEGORY_CACHE_KEY);
+      const cached = await MultiLayerCache.get(BLOG_CATEGORY_CACHE_KEY);
       if (cached) {
         Logger.debug('Blog Categories Data Cache Hit');
         return cached;
@@ -39,7 +39,7 @@ class BlogCategoryService {
     
     // Cache the full list
     if (Object.keys(filter).length === 0) {
-      await Cache.set(BLOG_CATEGORY_CACHE_KEY, categories, 3600);
+      await MultiLayerCache.set(BLOG_CATEGORY_CACHE_KEY, categories, 3600);
     }
     
     return categories;

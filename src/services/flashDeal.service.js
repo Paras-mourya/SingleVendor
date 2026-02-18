@@ -2,7 +2,7 @@ import FlashDealRepository from '../repositories/flashDeal.repository.js';
 import ProductRepository from '../repositories/product.repository.js';
 import AppError from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 import { uploadImageFromUrl, deleteMultipleImages } from '../utils/imageUpload.util.js';
 
 class FlashDealService {
@@ -239,11 +239,11 @@ class FlashDealService {
   }
 
   async invalidateCache() {
-    await Cache.delByPattern('flash-deals*');
+    await MultiLayerCache.delByPattern('flash-deals*');
     // Clear product list caches because their prices might have changed due to flash deal updates
-    await Cache.delByPattern('public_products*');
-    await Cache.delByPattern('search*');
-    await Cache.delByPattern('similar*');
+    await MultiLayerCache.delByPattern('public_products*');
+    await MultiLayerCache.delByPattern('search*');
+    await MultiLayerCache.delByPattern('similar*');
   }
 }
 

@@ -3,7 +3,7 @@ import BlogCategoryRepository from '../repositories/blogCategory.repository.js';
 import BlogSettingRepository from '../repositories/blogSetting.repository.js';
 import AppError from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 import Logger from '../utils/logger.js';
 import { uploadToCloudinary, deleteFromCloudinary } from '../utils/cloudinary.js';
 
@@ -15,11 +15,11 @@ const BLOG_SETTING_CACHE_KEY = 'blog:settings';
 
 class BlogService {
   async invalidateCache() {
-    await Cache.del(BLOG_CACHE_KEY);
-    await Cache.del(PUBLIC_BLOG_CACHE_KEY);
-    await Cache.del(BLOG_SETTING_CACHE_KEY);
-    await Cache.delByPattern(BLOG_RESPONSE_PATTERN);
-    await Cache.delByPattern(PUBLIC_BLOG_RESPONSE_PATTERN);
+    await MultiLayerCache.del(BLOG_CACHE_KEY);
+    await MultiLayerCache.del(PUBLIC_BLOG_CACHE_KEY);
+    await MultiLayerCache.del(BLOG_SETTING_CACHE_KEY);
+    await MultiLayerCache.delByPattern(BLOG_RESPONSE_PATTERN);
+    await MultiLayerCache.delByPattern(PUBLIC_BLOG_RESPONSE_PATTERN);
     Logger.debug('Blog Cache Invalidated');
   }
 
@@ -105,7 +105,7 @@ class BlogService {
     // Try cache for default landing page (no filters, no cursor)
     const isDefaultLanding = Object.keys(filter).length === 0 && !cursor;
     if (isDefaultLanding) {
-      const cached = await Cache.get(PUBLIC_BLOG_CACHE_KEY);
+      const cached = await MultiLayerCache.get(PUBLIC_BLOG_CACHE_KEY);
       if (cached) return cached;
     }
 
@@ -119,7 +119,7 @@ class BlogService {
     };
 
     if (isDefaultLanding) {
-      await Cache.set(PUBLIC_BLOG_CACHE_KEY, response, 3600);
+      await MultiLayerCache.set(PUBLIC_BLOG_CACHE_KEY, response, 3600);
     }
 
     return response;
@@ -240,11 +240,11 @@ class BlogService {
   }
 
   async getSettings() {
-    const cached = await Cache.get(BLOG_SETTING_CACHE_KEY);
+    const cached = await MultiLayerCache.get(BLOG_SETTING_CACHE_KEY);
     if (cached) return cached;
 
     const settings = await BlogSettingRepository.getSettings();
-    await Cache.set(BLOG_SETTING_CACHE_KEY, settings, 3600);
+    await MultiLayerCache.set(BLOG_SETTING_CACHE_KEY, settings, 3600);
     return settings;
   }
 

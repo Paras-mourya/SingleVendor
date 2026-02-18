@@ -2,7 +2,7 @@ import ProductSubCategoryRepository from '../repositories/productSubCategory.rep
 import ProductCategoryRepository from '../repositories/productCategory.repository.js';
 import AppError from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 import Logger from '../utils/logger.js';
 
 const SUBCATEGORY_CACHE_PREFIX = 'product:subcategories:';
@@ -11,13 +11,13 @@ const SUBCATEGORY_RESPONSE_PATTERN = 'response:/api/v1/subcategories*';
 class ProductSubCategoryService {
   async invalidateCache(categoryId) {
     if (categoryId) {
-      await Cache.del(`${SUBCATEGORY_CACHE_PREFIX}${categoryId}`);
+      await MultiLayerCache.del(`${SUBCATEGORY_CACHE_PREFIX}${categoryId}`);
     } else {
-      await Cache.delByPattern(`${SUBCATEGORY_CACHE_PREFIX}*`);
+      await MultiLayerCache.delByPattern(`${SUBCATEGORY_CACHE_PREFIX}*`);
     }
-    await Cache.delByPattern(SUBCATEGORY_RESPONSE_PATTERN);
+    await MultiLayerCache.delByPattern(SUBCATEGORY_RESPONSE_PATTERN);
     // Any sub-category change should refresh product listings
-    await Cache.delByPattern('*product*');
+    await MultiLayerCache.delByPattern('*product*');
     Logger.debug('Product SubCategory and Product Caches Invalidated');
   }
 
@@ -45,14 +45,14 @@ class ProductSubCategoryService {
 
   async getSubCategoriesByCategory(categoryId) {
     const cacheKey = `${SUBCATEGORY_CACHE_PREFIX}${categoryId}`;
-    const cached = await Cache.get(cacheKey);
+    const cached = await MultiLayerCache.get(cacheKey);
     if (cached) {
       Logger.debug(`Subcategories Data Cache Hit: ${categoryId}`);
       return cached;
     }
 
     const subs = await ProductSubCategoryRepository.findByCategoryId(categoryId);
-    await Cache.set(cacheKey, subs, 3600);
+    await MultiLayerCache.set(cacheKey, subs, 3600);
     return subs;
   }
 

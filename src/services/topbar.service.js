@@ -1,12 +1,12 @@
 import TopbarRepository from '../repositories/topbar.repository.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 
 class TopbarService {
   /**
    * Helper to invalidate public topbar cache
    */
   async invalidateCache() {
-    await Cache.delByPattern('response:/api/v1/topbar/public*');
+    await MultiLayerCache.delByPattern('response:/api/v1/topbar/public*');
   }
 
   async saveTopbar(topbarData) {

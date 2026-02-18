@@ -2,8 +2,11 @@ import CartRepository from '../repositories/cart.repository.js';
 import ProductRepository from '../repositories/product.repository.js';
 import AppError from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 import Logger from '../utils/logger.js';
 import TransactionManager from '../utils/transaction.js';
+
+const CART_SERVICE_CACHE_PREFIX = 'cartService:';
 
 class CartService {
   /**
@@ -182,7 +185,69 @@ class CartService {
      */
   async clearCart({ userId, guestId }) {
     const filter = userId ? { customerId: userId } : { guestId };
-    return await CartRepository.deleteById((await CartRepository.findOne(filter))._id);
+    const result = await CartRepository.deleteById((await CartRepository.findOne(filter))._id);
+    
+    // Invalidate service-level cache
+    await this.invalidateCartCache(userId, guestId);
+    
+    return result;
+  }
+
+  /**
+   * Invalidate cart cache (Service Level)
+   */
+  async invalidateCartCache(userId = null, guestId = null) {
+    const patterns = [];
+    
+    if (userId) {
+      patterns.push(`${CART_SERVICE_CACHE_PREFIX}user:${userId}:*`);
+    }
+    if (guestId) {
+      patterns.push(`${CART_SERVICE_CACHE_PREFIX}guest:${guestId}:*`);
+    }
+    
+    // Clear all cart service caches if no specific ID
+    if (!userId && !guestId) {
+      patterns.push(`${CART_SERVICE_CACHE_PREFIX}*`);
+    }
+    
+    for (const pattern of patterns) {
+      await MultiLayerCache.delByPattern(pattern);
+    }
+    
+    Logger.debug('Cart service cache invalidated', { userId, guestId, patterns });
+  }
+
+  /**
+   * Get cart summary with caching
+   */
+  async getCartSummary({ userId, guestId }) {
+    const cacheKey = userId 
+      ? `${CART_SERVICE_CACHE_PREFIX}user:${userId}:summary`
+      : `${CART_SERVICE_CACHE_PREFIX}guest:${guestId}:summary`;
+    
+    return await MultiLayerCache.get(cacheKey, async () => {
+      const cart = userId 
+        ? await CartRepository.findByCustomerId(userId, true)
+        : await CartRepository.findByGuestId(guestId, true);
+      
+      if (!cart || !cart.items || cart.items.length === 0) {
+        return {
+          itemCount: 0,
+          totalAmount: 0,
+          items: []
+        };
+      }
+      
+      const itemCount = cart.items.reduce((sum, item) => sum + item.quantity, 0);
+      const totalAmount = cart.items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+      
+      return {
+        itemCount,
+        totalAmount,
+        items: cart.items
+      };
+    }, 300); // 5 minutes cache for cart summary
   }
 }
 

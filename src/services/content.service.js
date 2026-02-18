@@ -1,7 +1,7 @@
 import SiteContentRepository from '../repositories/siteContent.repository.js';
 import AppError from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 
 const CONTENT_CACHE_KEY = 'single_vendor:content';
 
@@ -14,9 +14,9 @@ class ContentService {
   async updateContent(data) {
     const content = await SiteContentRepository.update(data);
     // Invalidate data cache
-    await Cache.del(CONTENT_CACHE_KEY);
+    await MultiLayerCache.del(CONTENT_CACHE_KEY);
     // Invalidate all response caches for content routes
-    await Cache.delByPattern('response:/api/v1/content*');
+    await MultiLayerCache.delByPattern('response:/api/v1/content*');
     return content;
   }
 
@@ -26,7 +26,7 @@ class ContentService {
    */
   async getContent() {
     // 1. Try to get from cache
-    const cachedContent = await Cache.get(CONTENT_CACHE_KEY);
+    const cachedContent = await MultiLayerCache.get(CONTENT_CACHE_KEY);
     if (cachedContent) return cachedContent;
 
     // 2. Fetch from DB if miss
@@ -45,7 +45,7 @@ class ContentService {
     }
     
     // 3. Store in cache for next time
-    await Cache.set(CONTENT_CACHE_KEY, content);
+    await MultiLayerCache.set(CONTENT_CACHE_KEY, content);
     
     return content;
   }

@@ -2,14 +2,14 @@ import TrustedByRepository from '../repositories/trustedBy.repository.js';
 import { deleteFromCloudinary } from '../utils/cloudinary.js';
 import AppError from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 
 class TrustedByService {
   /**
    * Helper to invalidate public trusted-by cache
    */
   async invalidateCache() {
-    await Cache.delByPattern('response:/api/v1/trusted-by/public*');
+    await MultiLayerCache.delByPattern('response:/api/v1/trusted-by/public*');
   }
 
   async createLogo(data) {

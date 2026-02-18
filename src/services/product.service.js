@@ -2,7 +2,7 @@ import ProductRepository from '../repositories/product.repository.js';
 import AppError from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants.js';
 import slugify from 'slugify';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 import ExcelJS from 'exceljs';
 import mongoose from 'mongoose';
 import ProductCategoryRepository from '../repositories/productCategory.repository.js';
@@ -380,7 +380,7 @@ class ProductService {
     if (!query) return { products: [], total: 0, nextCursor: null };
 
     const cacheKey = `search:${query}:${cursor}:${limit}`;
-    const cached = await Cache.get(cacheKey);
+    const cached = await MultiLayerCache.get(cacheKey);
     if (cached) return cached;
 
     const result = await ProductRepository.searchText(query, parseInt(limit), cursor);
@@ -400,7 +400,7 @@ class ProductService {
     };
 
     // Cache for 10 minutes
-    await Cache.set(cacheKey, finalResult, 600);
+    await MultiLayerCache.set(cacheKey, finalResult, 600);
     return finalResult;
   }
 
@@ -414,21 +414,27 @@ class ProductService {
     }
 
     const cacheKey = `similar:${productId}:${limit}`;
-    const cached = await Cache.get(cacheKey);
+    const cached = await MultiLayerCache.get(cacheKey);
     if (cached) return cached;
 
     const products = await ProductRepository.findSimilarByTags(product.searchTags, productId, limit);
     const enrichedProducts = await FlashDealService.enrichProductsWithFlashDeals(products);
 
     // Cache similar products for 30 minutes
-    await Cache.set(cacheKey, enrichedProducts, 1800);
+    await MultiLayerCache.set(cacheKey, enrichedProducts, 1800);
     return enrichedProducts;
   }
 
   async invalidateCache() {
     // Pattern based invalidation for service-level and middleware-level cache
-    await Cache.delByPattern('*product*');
-    await Cache.delByPattern('response:/api/v1/products*');
+    await MultiLayerCache.delByPattern('*product*');
+    await MultiLayerCache.delByPattern('response:/api/v1/products*');
+    await MultiLayerCache.delByPattern('product:*');
+    await MultiLayerCache.delByPattern('product:list:*');
+    await MultiLayerCache.delByPattern('product:featured:*');
+    await MultiLayerCache.delByPattern('product:search:*');
+    await MultiLayerCache.delByPattern('product:similar:*');
+    await MultiLayerCache.delByPattern('product:detail:*');
     Logger.info('Product cache cleared globally');
   }
 }

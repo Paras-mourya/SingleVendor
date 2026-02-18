@@ -7,9 +7,12 @@ import { uploadToCloudinary, deleteFromCloudinary } from '../utils/cloudinary.js
 import { generateToken, generateRefreshToken } from '../utils/jwt.js';
 import AuditLogger from '../utils/audit.js';
 import TransactionManager from '../utils/transaction.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 import Logger from '../utils/logger.js';
 import LoginSettingRepository from '../repositories/loginSetting.repository.js';
 import CartService from './cart.service.js';
+
+const CUSTOMER_SERVICE_CACHE_PREFIX = 'customerService:';
 
 class CustomerService {
   /**
@@ -551,8 +554,83 @@ class CustomerService {
      * Get Customers for Export (Admin)
      */
   async getCustomersForExport(filter = {}) {
-    const result = await CustomerRepository.findAll(filter, { createdAt: -1 }, 10000); // Higher limit, no cursor for small-medium sets
-    return result.items || [];
+    const cacheKey = `${CUSTOMER_SERVICE_CACHE_PREFIX}export:${JSON.stringify(filter)}`;
+    
+    return await MultiLayerCache.get(cacheKey, async () => {
+      const result = await CustomerRepository.findAll(filter, { createdAt: -1 }, 10000); // Higher limit, no cursor for small-medium sets
+      return result.items || [];
+    }, 1800); // 30 minutes cache for export data
+  }
+
+  /**
+   * Invalidate customer cache (Service Level)
+   */
+  async invalidateCustomerCache(customerId = null, email = null) {
+    const patterns = [];
+    
+    if (customerId) {
+      patterns.push(`${CUSTOMER_SERVICE_CACHE_PREFIX}user:${customerId}:*`);
+      patterns.push(`${CUSTOMER_SERVICE_CACHE_PREFIX}profile:${customerId}:*`);
+    }
+    if (email) {
+      patterns.push(`${CUSTOMER_SERVICE_CACHE_PREFIX}email:${email}:*`);
+    }
+    
+    // Clear all customer service caches if no specific ID
+    if (!customerId && !email) {
+      patterns.push(`${CUSTOMER_SERVICE_CACHE_PREFIX}*`);
+    }
+    
+    for (const pattern of patterns) {
+      await MultiLayerCache.delByPattern(pattern);
+    }
+    
+    Logger.debug('Customer service cache invalidated', { customerId, email, patterns });
+  }
+
+  /**
+   * Get customer profile with caching
+   */
+  async getCustomerProfile(customerId) {
+    const cacheKey = `${CUSTOMER_SERVICE_CACHE_PREFIX}profile:${customerId}`;
+    
+    return await MultiLayerCache.get(cacheKey, async () => {
+      const customer = await CustomerRepository.findById(customerId, '-password -otp -otpExpires -resetPasswordToken -resetPasswordExpires');
+      
+      if (!customer) {
+        throw new AppError('Customer not found', HTTP_STATUS.NOT_FOUND);
+      }
+      
+      // Add additional profile data
+      return {
+        ...customer,
+        profileCompleted: !!(customer.firstName && customer.lastName && customer.phone),
+        membershipStatus: customer.isActive ? 'active' : 'inactive',
+        lastLogin: customer.lastLogin || null
+      };
+    }, 1200); // 20 minutes cache for profile data
+  }
+
+  /**
+   * Get customer statistics with caching
+   */
+  async getCustomerStatistics() {
+    const cacheKey = `${CUSTOMER_SERVICE_CACHE_PREFIX}statistics`;
+    
+    return await MultiLayerCache.get(cacheKey, async () => {
+      const totalCustomers = await CustomerRepository.count({ isActive: true });
+      const newCustomersThisMonth = await CustomerRepository.count({
+        isActive: true,
+        createdAt: { $gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) }
+      });
+      
+      return {
+        totalCustomers,
+        newCustomersThisMonth,
+        averageCustomersPerDay: Math.round(totalCustomers / 30), // Approximate
+        growthRate: newCustomersThisMonth > 0 ? Math.round((newCustomersThisMonth / totalCustomers) * 100) : 0
+      };
+    }, 3600); // 1 hour cache for statistics
   }
 
   generateTokens(customer) {

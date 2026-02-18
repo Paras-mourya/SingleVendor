@@ -1,28 +1,28 @@
 import FAQRepository from '../repositories/faq.repository.js';
 import AppError from '../utils/AppError.js';
 import { HTTP_STATUS } from '../constants.js';
-import Cache from '../utils/cache.js';
+import MultiLayerCache from '../utils/multiLayerCache.js';
 
 const FAQ_CACHE_KEY = 'single_vendor:faqs';
 
 class FAQService {
   async createFAQ(data) {
     const faq = await FAQRepository.create(data);
-    await Cache.del(FAQ_CACHE_KEY); // Invalidate data cache
-    await Cache.delByPattern('response:/api/v1/faqs*'); // Invalidate all FAQ response caches
+    await MultiLayerCache.del(FAQ_CACHE_KEY); // Invalidate data cache
+    await MultiLayerCache.delByPattern('response:/api/v1/faqs*'); // Invalidate all FAQ response caches
     return faq;
   }
 
   async getAllFAQs() {
     // 1. Try to get from cache
-    const cachedFaqs = await Cache.get(FAQ_CACHE_KEY);
+    const cachedFaqs = await MultiLayerCache.get(FAQ_CACHE_KEY);
     if (cachedFaqs) return cachedFaqs;
 
     // 2. Fetch from DB if miss
     const faqs = await FAQRepository.findAll({});
     
     // 3. Store in cache
-    await Cache.set(FAQ_CACHE_KEY, faqs);
+    await MultiLayerCache.set(FAQ_CACHE_KEY, faqs);
     
     return faqs;
   }
@@ -40,8 +40,8 @@ class FAQService {
     if (!faq) {
       throw new AppError('FAQ not found', HTTP_STATUS.NOT_FOUND, 'FAQ_NOT_FOUND');
     }
-    await Cache.del(FAQ_CACHE_KEY); // Invalidate data cache
-    await Cache.delByPattern('response:/api/v1/faqs*'); // Invalidate response caches
+    await MultiLayerCache.del(FAQ_CACHE_KEY); // Invalidate data cache
+    await MultiLayerCache.delByPattern('response:/api/v1/faqs*'); // Invalidate response caches
     return faq;
   }
 
@@ -50,8 +50,8 @@ class FAQService {
     if (!faq) {
       throw new AppError('FAQ not found', HTTP_STATUS.NOT_FOUND, 'FAQ_NOT_FOUND');
     }
-    await Cache.del(FAQ_CACHE_KEY); // Invalidate data cache
-    await Cache.delByPattern('response:/api/v1/faqs*'); // Invalidate response caches
+    await MultiLayerCache.del(FAQ_CACHE_KEY); // Invalidate data cache
+    await MultiLayerCache.delByPattern('response:/api/v1/faqs*'); // Invalidate response caches
     return true;
   }
 }

@@ -2,73 +2,25 @@ import express from 'express';
 import AdminController from '../controllers/admin.controller.js';
 import { adminProtect } from '../middleware/adminAuth.middleware.js';
 import validate from '../middleware/validate.middleware.js';
+import adminValidation from '../validations/admin.validation.js';
 import { HTTP_STATUS } from '../constants.js';
-import { z } from 'zod';
 
 import uploadMiddleware from '../middleware/upload.middleware.js';
-import cacheMiddleware from '../middleware/cache.middleware.js';
+import { cacheMiddleware, adminListCache } from '../middleware/cache.middleware.js';
 import { lockRequest } from '../middleware/idempotency.middleware.js';
 
 const router = express.Router();
 
-// Validation schemas
-const loginSchema = z.object({
-  body: z.object({
-    email: z.string().email('Invalid email address'),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
-    rememberMe: z.boolean().optional(),
-  }),
-});
-
-const updateProfileSchema = z.object({
-  body: z.object({
-    name: z.string().min(2).optional(),
-    email: z.string().email().optional(),
-    phoneNumber: z.string().regex(/^[6-9]\d{9}$/, 'Invalid phone number').optional(),
-  }),
-});
-
-const updatePasswordSchema = z.object({
-  body: z.object({
-    newPassword: z.string().min(8, 'New password must be at least 8 characters'),
-    confirmPassword: z.string().min(1, 'Confirmation is required'),
-  }).refine((data) => data.newPassword === data.confirmPassword, {
-    message: 'Passwords don\'t match',
-    path: ['confirmPassword'],
-  }),
-});
-
-// Forgot Password Schemas
-const forgotPasswordSchema = z.object({
-  body: z.object({
-    email: z.string().email('Invalid email address'),
-  }),
-});
-
-const verifyOtpSchema = z.object({
-  body: z.object({
-    email: z.string().email('Invalid email address'),
-    otp: z.string().length(6, 'OTP must be 6 digits'),
-  }),
-});
-
-const resetPasswordSchema = z.object({
-  body: z.object({
-    resetToken: z.string().min(1, 'Reset token is required'),
-    newPassword: z.string().min(8, 'New password must be at least 8 characters'),
-    confirmPassword: z.string().min(1, 'Confirmation is required'),
-  }).refine((data) => data.newPassword === data.confirmPassword, {
-    message: 'Passwords don\'t match',
-    path: ['confirmPassword'],
-  }),
-});
-
 import rateLimit from 'express-rate-limit';
+
+// Multi-Layer Cache middleware for admin routes
+const adminCache = (ttl) => cacheMiddleware(ttl);
+const adminInvalidate = () => cacheMiddleware(0, () => 'invalidate');
 
 // Strict Rate Limiter for Auth Routes
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100000, // Limit each IP to 20 requests per windowMs
+  max: 10, // Limit each IP to 10 requests per windowMs (brute force protection)
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -78,20 +30,46 @@ const authLimiter = rateLimit({
   }
 });
 
-router.post('/login', authLimiter, validate(loginSchema), AdminController.login);
-router.post('/refresh-token', AdminController.refreshToken); // New Route
-router.post('/forgot-password', authLimiter, lockRequest('admin-forgot-password'), validate(forgotPasswordSchema), AdminController.forgotPassword);
-router.post('/verify-otp', authLimiter, validate(verifyOtpSchema), AdminController.verifyOtp);
-router.post('/reset-password', authLimiter, lockRequest('admin-reset-password'), validate(resetPasswordSchema), AdminController.resetPassword);
+// Rate limiter for password reset operations (more restrictive)
+const passwordResetLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3, // Limit each IP to 3 password reset requests per hour
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    status: HTTP_STATUS.TOO_MANY_REQUESTS,
+    message: 'Too many password reset attempts. Please try again later.',
+    code: 'PASSWORD_RESET_RATE_LIMIT'
+  }
+});
+
+// Rate limiter for profile updates
+const profileUpdateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each admin to 5 profile updates per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    status: HTTP_STATUS.TOO_MANY_REQUESTS,
+    message: 'Too many profile update attempts. Please try again later.',
+    code: 'PROFILE_UPDATE_RATE_LIMIT'
+  }
+});
+
+router.post('/login', authLimiter, validate(adminValidation.login), AdminController.login);
+router.post('/refresh-token', validate(adminValidation.refreshToken), AdminController.refreshToken);
+router.post('/forgot-password', passwordResetLimiter, lockRequest('admin-forgot-password'), validate(adminValidation.forgotPassword), AdminController.forgotPassword);
+router.post('/verify-otp', authLimiter, validate(adminValidation.verifyOtp), AdminController.verifyOtp);
+router.post('/reset-password', passwordResetLimiter, lockRequest('admin-reset-password'), validate(adminValidation.resetPassword), AdminController.resetPassword);
 
 // Protected routes
 router.use(adminProtect);
 
 router.post('/logout', AdminController.logout);
-router.get('/me', cacheMiddleware(3600), AdminController.getMe);
-router.patch('/profile', validate(updateProfileSchema), AdminController.updateProfile);
-router.patch('/photo', uploadMiddleware.single('photo'), AdminController.updatePhoto);
-router.delete('/photo', AdminController.deletePhoto);
-router.patch('/update-password', validate(updatePasswordSchema), AdminController.updatePassword);
+router.get('/me', adminCache(1800), AdminController.getMe);
+router.patch('/profile', profileUpdateLimiter, adminInvalidate(), validate(adminValidation.updateProfile), AdminController.updateProfile);
+router.patch('/photo', profileUpdateLimiter, adminInvalidate(), uploadMiddleware.single('photo'), AdminController.updatePhoto);
+router.delete('/photo', adminInvalidate(), AdminController.deletePhoto);
+router.patch('/update-password', profileUpdateLimiter, adminInvalidate(), validate(adminValidation.updatePassword), AdminController.updatePassword);
 
 export default router;
