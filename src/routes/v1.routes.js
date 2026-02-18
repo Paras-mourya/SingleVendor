@@ -39,6 +39,7 @@ import cartRoutes from './cart.routes.js';
 import wishlistRoutes from './wishlist.routes.js';
 import supportTicketRoutes from './supportTicket.routes.js';
 import adminCustomerRoutes from './adminCustomer.routes.js';
+import adminClearanceSaleRoutes from './adminClearanceSale.routes.js';
 
 const router = express.Router();
 
@@ -85,6 +86,7 @@ router.use('/cart', cartRoutes);
 router.use('/wishlist', wishlistRoutes);
 router.use('/support-tickets', supportTicketRoutes);
 router.use('/admin/customers', adminCustomerRoutes);
+router.use('/admin/clearance', adminClearanceSaleRoutes);
 // Health check can also be versioned if needed, but usually kept root
 router.use('/health', healthRoutes);
 

@@ -58,10 +58,39 @@ export const clearCart = async (req, res) => {
   return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, null, 'Cart cleared'));
 };
 
+export const applyCoupon = async (req, res) => {
+  const { userId, guestId } = getIds(req);
+  const { code } = req.body;
+
+  const cart = await CartService.applyCoupon({ userId, guestId, code });
+  return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, cart, 'Coupon applied successfully'));
+};
+
+export const removeCoupon = async (req, res) => {
+  const { userId, guestId } = getIds(req);
+
+  const cart = await CartService.removeCoupon({ userId, guestId });
+  return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, cart, 'Coupon removed successfully'));
+};
+
+export const getCartSummary = async (req, res) => {
+  const { userId, guestId } = getIds(req);
+
+  if (!userId && !guestId) {
+    return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, { items: [], grandTotal: 0 }, 'Empty Summary'));
+  }
+
+  const summary = await CartService.getCartSummary({ userId, guestId });
+  return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, summary, 'Cart summary fetched successfully'));
+};
+
 export default {
   getCart,
   addToCart,
   updateCartItem,
   removeFromCart,
-  clearCart
+  clearCart,
+  getCartSummary,
+  applyCoupon,
+  removeCoupon
 };

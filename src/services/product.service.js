@@ -89,7 +89,13 @@ class ProductService {
     if (!product) {
       throw new AppError('Product not found or unavailable', HTTP_STATUS.NOT_FOUND);
     }
-    return await FlashDealService.enrichProductsWithFlashDeals(product);
+
+    // 1. Enrich with Flash Deals
+    const flashEnriched = await FlashDealService.enrichProductsWithFlashDeals(product);
+
+    // 2. Enrich with Clearance Sales
+    const ClearanceSaleService = (await import('./clearanceSale.service.js')).default;
+    return await ClearanceSaleService.enrichProductsWithSales(flashEnriched);
   }
 
   async getProductById(id) {
@@ -206,8 +212,12 @@ class ProductService {
 
     const enrichedProducts = await FlashDealService.enrichProductsWithFlashDeals(result.items);
 
+    // 2. Enrich with Clearance Sales
+    const ClearanceSaleService = (await import('./clearanceSale.service.js')).default;
+    const finalEnriched = await ClearanceSaleService.enrichProductsWithSales(enrichedProducts);
+
     const finalResult = {
-      products: enrichedProducts,
+      products: finalEnriched,
       total,
       nextCursor: result.nextCursor,
       limit: parseInt(limit)

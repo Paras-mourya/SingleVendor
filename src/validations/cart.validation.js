@@ -16,15 +16,15 @@ const updateCartItem = z.object({
   }),
 });
 
-const removeFromCart = z.object({
+const applyCoupon = z.object({
   body: z.object({
-    productId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid Product ID'),
-    variationId: z.string().optional(),
-  }),
+    code: z.string().min(1, 'Coupon code is required').trim().toUpperCase()
+  })
 });
 
 export default {
   addToCart,
   updateCartItem,
   removeFromCart,
+  applyCoupon
 };

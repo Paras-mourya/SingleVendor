@@ -12,7 +12,7 @@ const router = express.Router();
 router.use(optionalProtect);
 
 // Cache cart GET requests for better performance
-router.get('/', 
+router.get('/',
   cacheMiddleware({
     ttl: 300, // 5 minutes cache for cart data
     keyGenerator: (req) => {
@@ -22,6 +22,30 @@ router.get('/',
     }
   }),
   CartController.getCart
+);
+
+router.get('/summary',
+  cacheMiddleware({
+    ttl: 300,
+    keyGenerator: (req) => {
+      const userId = req.user?.id || 'guest';
+      const guestId = req.guestId || 'anonymous';
+      return `cart-summary:${userId}:${guestId}`;
+    }
+  }),
+  CartController.getCartSummary
+);
+
+router.post('/apply-coupon',
+  lockRequest(),
+  validate(CartValidation.applyCoupon),
+  cacheMiddleware({ invalidatePattern: 'cart:*', type: 'invalidate' }),
+  CartController.applyCoupon
+);
+
+router.delete('/remove-coupon',
+  cacheMiddleware({ invalidatePattern: 'cart:*', type: 'invalidate' }),
+  CartController.removeCoupon
 );
 
 router.post(
@@ -48,7 +72,7 @@ router.delete(
   CartController.removeFromCart
 );
 
-router.delete('/clear', 
+router.delete('/clear',
   cacheMiddleware({ invalidatePattern: 'cart:*', type: 'invalidate' }),
   CartController.clearCart
 );

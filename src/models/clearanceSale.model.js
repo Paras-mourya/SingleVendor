@@ -1,0 +1,83 @@
+import mongoose from 'mongoose';
+
+const clearanceSaleSchema = new mongoose.Schema({
+    // Configuration
+    isActive: {
+        type: Boolean,
+        default: false,
+        index: true
+    },
+    startDate: {
+        type: Date,
+        required: true
+    },
+    expireDate: {
+        type: Date,
+        required: true
+    },
+    discountType: {
+        type: String,
+        enum: ['flat', 'product_wise'],
+        default: 'flat',
+        required: true
+    },
+    discountAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+        // Only relevant if discountType is 'flat'
+    },
+    offerActiveTime: {
+        type: String,
+        enum: ['always', 'specific_time'],
+        default: 'always'
+    },
+    // Only if specific_time
+    startTime: {
+        type: String, // Format "HH:mm" e.g. "14:00"
+        default: null
+    },
+    endTime: {
+        type: String, // Format "HH:mm"
+        default: null
+    },
+
+    // SEO / Meta Data
+    metaTitle: { type: String, trim: true },
+    metaDescription: { type: String, trim: true },
+    metaImage: {
+        url: { type: String },
+        publicId: { type: String }
+    },
+
+    // Products included in the sale
+    products: [{
+        product: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Product'
+        },
+        discount: {
+            type: Number,
+            default: 0,
+            min: 0
+        },
+        isActive: {
+            type: Boolean,
+            default: true
+        }
+    }]
+}, {
+    timestamps: true,
+    versionKey: false
+});
+
+// ========================================
+// PERFORMANCE OPTIMIZATION: Database Indexes
+// ========================================
+
+// Index for date range queries (active sales)
+clearanceSaleSchema.index({ startDate: 1, expireDate: 1 });
+
+const ClearanceSale = mongoose.model('ClearanceSale', clearanceSaleSchema);
+
+export default ClearanceSale;
