@@ -1,0 +1,158 @@
+// Use this code at https://dbdiagram.io/
+
+Table Admin {
+  _id ObjectId [pk]
+  name String
+  email String [unique]
+  password String
+  phoneNumber String
+  photo Object
+  resetPasswordOtp String
+  resetPasswordExpires Date
+  loginAttempts Number
+  lockoutUntil Date
+}
+
+Table Customer {
+  _id ObjectId [pk]
+  name String
+  email String [unique]
+  password String
+  phoneNumber String
+  photo Object
+  role String
+  isVerified Boolean
+  isActive Boolean
+  tokenVersion Number
+  lastLogin Date
+}
+
+Table Product {
+  _id ObjectId [pk]
+  name String
+  description String
+  category ObjectId [ref: > ProductCategory._id]
+  subCategory ObjectId [ref: > ProductSubCategory._id]
+  brand String
+  productType String
+  unit String
+  price Number
+  quantity Number
+  sku String [unique]
+  status String
+  isActive Boolean
+}
+
+Table ProductCategory {
+  _id ObjectId [pk]
+  name String [unique]
+  status String
+}
+
+Table ProductSubCategory {
+  _id ObjectId [pk]
+  name String
+  category ObjectId [ref: > ProductCategory._id]
+}
+
+Table ProductAttribute {
+  _id ObjectId [pk]
+  name String [unique]
+  values "String[]"
+  isActive Boolean
+  updatedBy ObjectId [ref: > Employee._id]
+}
+
+Table Cart {
+  _id ObjectId [pk]
+  customerId ObjectId [ref: > Customer._id]
+  guestId String
+  totalPrice Number
+  appliedCoupon ObjectId [ref: > Coupon._id]
+  expiresAt Date
+}
+
+Table CartItem {
+  _id ObjectId [pk]
+  product ObjectId [ref: > Product._id]
+  cartId ObjectId [ref: > Cart._id]
+  quantity Number
+  price Number
+}
+
+Table Wishlist {
+  _id ObjectId [pk]
+  customerId ObjectId [ref: > Customer._id, unique]
+}
+
+Table WishlistItem {
+  product ObjectId [ref: > Product._id]
+  wishlistId ObjectId [ref: > Wishlist._id]
+}
+
+Table SupportTicket {
+  _id ObjectId [pk]
+  customer ObjectId [ref: > Customer._id]
+  ticketId String [unique]
+  subject String
+  priority String
+  status String
+}
+
+Table Employee {
+  _id ObjectId [pk]
+  name String
+  email String [unique]
+  role ObjectId [ref: > Role._id]
+  isActive Boolean
+}
+
+Table Role {
+  _id ObjectId [pk]
+  name String [unique]
+  permissions "String[]"
+  isActive Boolean
+}
+
+Table Blog {
+  _id ObjectId [pk]
+  title String
+  slug String [unique]
+  category ObjectId [ref: > BlogCategory._id]
+  writerName String
+  status String
+}
+
+Table BlogCategory {
+  _id ObjectId [pk]
+  name String [unique]
+  status String
+}
+
+Table Coupon {
+  _id ObjectId [pk]
+  title String
+  code String [unique]
+  type String
+  discountAmount Number
+  isActive Boolean
+}
+
+Table FlashDeal {
+  _id ObjectId [pk]
+  title String
+  startDate Date
+  endDate Date
+  isPublished Boolean
+}
+
+Table DealOfTheDay {
+  _id ObjectId [pk]
+  title String
+  isPublished Boolean
+}
+
+// Relationships (Manual Ref blocks if not defined inline)
+// Ref: Cart.customerId > Customer._id
+// Ref: CartItem.cartId > Cart._id
+// Ref: WishlistItem.wishlistId > Wishlist._id

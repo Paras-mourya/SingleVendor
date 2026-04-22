@@ -23,9 +23,9 @@ async function check() {
     try {
       console.log(`Checking: ${imp}...`);
       await import(imp);
-      console.log(`✅ ${imp} OK`);
+      console.log(` ${imp} OK`);
     } catch (e) {
-      console.error(`❌ ${imp} FAILED:`);
+      console.error(` ${imp} FAILED:`);
       console.error(e.message);
       // Don't stop, check others
     }

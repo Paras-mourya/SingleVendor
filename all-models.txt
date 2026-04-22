@@ -1,0 +1,2011 @@
+import mongoose from 'mongoose';
+import { hashPassword, comparePassword } from '../utils/security.js';
+
+const adminSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: [true, 'Please add a name'],
+    },
+    email: {
+      type: String,
+      required: [true, 'Please add an email'],
+      unique: true,
+      trim: true,
+      lowercase: true,
+      match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please add a valid email'],
+    },
+    password: {
+      type: String,
+      required: [true, 'Please add a password'],
+      minlength: 8,
+      select: false,
+    },
+    phoneNumber: {
+      type: String,
+      match: [/^[6-9]\d{9}$/, 'Please add a valid phone number'],
+    },
+    photo: {
+      url: {
+        type: String,
+        default: null,
+      },
+      publicId: {
+        type: String,
+        default: null,
+      },
+    },
+    resetPasswordOtp: String,
+    resetPasswordExpires: Date,
+    resetPasswordOtpAttempts: {
+      type: Number,
+      default: 0,
+    },
+    resetPasswordLockout: Date,
+
+    // Login Security
+    loginAttempts: {
+      type: Number,
+      default: 0,
+    },
+    lockoutUntil: Date,
+    tokenVersion: {
+      type: Number,
+      default: 0,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+// Encrypt password using Argon2
+adminSchema.pre('save', async function () {
+  if (!this.isModified('password')) {
+    return;
+  }
+  this.password = await hashPassword(this.password);
+});
+
+// High-performance indexes for admin queries
+adminSchema.index({ createdAt: -1 });
+
+// Match admin entered password to hashed password in database
+adminSchema.methods.matchPassword = async function (enteredPassword) {
+  return await comparePassword(this.password, enteredPassword);
+};
+
+const Admin = mongoose.model('Admin', adminSchema);
+
+export default Admin;
+import mongoose from 'mongoose';
+
+const adminEmailTemplateSchema = new mongoose.Schema(
+  {
+    event: {
+      type: String,
+      required: [true, 'Event type is required'],
+      unique: true,
+      enum: [
+        'Vendor Request',
+      ],
+    },
+    isEnabled: {
+      type: Boolean,
+      default: true,
+    },
+    logo: {
+      url: String,
+      publicId: String,
+    },
+    mainIcon: {
+      url: String,
+      publicId: String,
+    },
+    templateTitle: {
+      type: String,
+      required: [true, 'Template title is required'],
+      trim: true,
+    },
+    emailContent: {
+      type: String,
+      required: [true, 'Email content is required'],
+    },
+    footerDescription: {
+      type: String,
+      trim: true,
+    },
+    copyrightNotice: {
+      type: String,
+      trim: true,
+    },
+    includedLinks: {
+      privacyPolicy: { type: Boolean, default: false },
+      refundPolicy: { type: Boolean, default: false },
+      cancellationPolicy: { type: Boolean, default: false },
+      contactUs: { type: Boolean, default: false },
+    },
+    socialMediaLinks: {
+      facebook: { type: Boolean, default: false },
+      instagram: { type: Boolean, default: false },
+      twitter: { type: Boolean, default: false },
+      linkedin: { type: Boolean, default: false },
+      youtube: { type: Boolean, default: false },
+    },
+  },
+  { timestamps: true }
+);
+
+const AdminEmailTemplate = mongoose.model('AdminEmailTemplate', adminEmailTemplateSchema);
+
+export default AdminEmailTemplate;
+import mongoose from 'mongoose';
+import { BANNER_TYPES, RESOURCE_TYPES } from '../constants.js';
+
+const bannerSchema = new mongoose.Schema(
+  {
+    bannerType: {
+      type: String,
+      enum: Object.values(BANNER_TYPES),
+      required: true,
+    },
+    bannerUrl: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    resourceType: {
+      type: String,
+      enum: Object.values(RESOURCE_TYPES),
+      required: true,
+    },
+    image: {
+      url: {
+        type: String,
+        required: true,
+      },
+      publicId: {
+        type: String,
+        required: true,
+      },
+    },
+    published: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+// Indexes for performance
+bannerSchema.index({ bannerType: 1 });
+bannerSchema.index({ published: 1 });
+
+const Banner = mongoose.model('Banner', bannerSchema);
+
+export default Banner;
+import mongoose from 'mongoose';
+import slugify from 'slugify';
+
+const blogSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    slug: {
+      type: String,
+      unique: true,
+      lowercase: true,
+    },
+    description: {
+      type: String,
+      required: true,
+    },
+    category: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'BlogCategory',
+      required: true,
+    },
+    writerName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    publishDate: {
+      type: Date,
+      default: Date.now,
+    },
+    blogImage: {
+      url: String,
+      publicId: String,
+    },
+    seo: {
+      metaTitle: {
+        type: String,
+        trim: true,
+      },
+      metaDescription: {
+        type: String,
+        trim: true,
+      },
+      metaImage: {
+        url: String,
+        publicId: String,
+      },
+    },
+    status: {
+      type: String,
+      enum: ['active', 'inactive', 'draft'],
+      default: 'draft',
+    },
+  },
+  { timestamps: true }
+);
+
+// Slug generation hook
+blogSchema.pre('save', async function () {
+  if (this.isModified('title') || !this.slug) {
+    this.slug = slugify(this.title, { lower: true, strict: true });
+  }
+});
+
+// Indexes
+blogSchema.index({ status: 1 });
+blogSchema.index({ category: 1 });
+blogSchema.index({ title: 'text' }); // Search optimization
+
+const Blog = mongoose.model('Blog', blogSchema);
+
+export default Blog;
+import mongoose from 'mongoose';
+
+const blogCategorySchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      unique: true,
+    },
+    status: {
+      type: String,
+      enum: ['active', 'inactive'],
+      default: 'active',
+    },
+  },
+  { timestamps: true }
+);
+
+// Index for filtering by status
+blogCategorySchema.index({ status: 1 });
+
+const BlogCategory = mongoose.model('BlogCategory', blogCategorySchema);
+
+export default BlogCategory;
+import mongoose from 'mongoose';
+
+const blogSettingSchema = new mongoose.Schema(
+  {
+    isBlogEnabled: {
+      type: Boolean,
+      default: true,
+    },
+    introspectionTitle: {
+      type: String,
+      default: 'Our Blogs',
+    },
+    introspectionSubtitle: {
+      type: String,
+      default: 'Stay updated with our latest news and stories.',
+    },
+  },
+  { timestamps: true }
+);
+
+/**
+ * Singleton-like approach for blog settings.
+ * We will only have one document in this collection.
+ */
+const BlogSetting = mongoose.model('BlogSetting', blogSettingSchema);
+
+export default BlogSetting;
+import mongoose from 'mongoose';
+
+const cartItemSchema = new mongoose.Schema({
+  product: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Product',
+    required: true,
+  },
+  variation: {
+    type: Object, // Structured variation info
+    default: null
+  },
+  quantity: {
+    type: Number,
+    required: true,
+    min: [1, 'Quantity must be at least 1'],
+    max: [100, 'Quantity cannot exceed 100'],
+    default: 1
+  },
+  price: {
+    type: Number,
+    required: true
+  },
+  addedAt: {
+    type: Date,
+    default: Date.now
+  }
+}, { _id: true });
+
+const cartSchema = new mongoose.Schema({
+  customerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Customer',
+    default: null,
+    sparse: true
+  },
+  guestId: {
+    type: String,
+    default: null,
+    sparse: true,
+    validate: {
+      validator: function (v) {
+        // Allow simple guest strings or UUIDs
+        return !v || v.length > 5;
+      },
+      message: 'Invalid guest ID format'
+    }
+  },
+  items: [cartItemSchema],
+  totalPrice: {
+    type: Number,
+    default: 0
+  },
+  appliedCoupon: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Coupon',
+    default: null
+  },
+  expiresAt: {
+    type: Date,
+    default: null,
+  }
+}, {
+  timestamps: true,
+  versionKey: false
+});
+
+// Compound indexes for fast product-in-cart checks
+cartSchema.index({ customerId: 1, 'items.product': 1 });
+cartSchema.index({ guestId: 1, 'items.product': 1 });
+
+// TTL index for auto-cleanup of expired guest carts (MongoDB background job)
+cartSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
+// Validation and Expiry Logic
+cartSchema.pre('save', async function () {
+  // 1. Either customerId OR guestId must be present
+  if (!this.customerId && !this.guestId) {
+    throw new Error('Either customerId or guestId must be provided');
+  }
+
+  // 2. Prevent having both (though guestId is cleared on login merge)
+  if (this.customerId && this.guestId) {
+    // If both exist, we prioritize customerId (merging phase)
+  }
+
+  // 3. Set expiry for guest carts (7 days) if not already set
+  if (this.guestId && !this.expiresAt) {
+    this.expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  }
+
+  // 4. Recalculate total price
+  this.totalPrice = this.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+});
+
+// Virtual for total items count
+cartSchema.virtual('totalItems').get(function () {
+  return this.items.reduce((sum, item) => sum + item.quantity, 0);
+});
+
+const Cart = mongoose.model('Cart', cartSchema);
+
+export default Cart;
+import mongoose from 'mongoose';
+
+const clearanceSaleSchema = new mongoose.Schema({
+    // Configuration
+    isActive: {
+        type: Boolean,
+        default: false,
+        index: true
+    },
+    startDate: {
+        type: Date,
+        required: true
+    },
+    expireDate: {
+        type: Date,
+        required: true
+    },
+    discountType: {
+        type: String,
+        enum: ['flat', 'product_wise'],
+        default: 'flat',
+        required: true
+    },
+    discountAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+        // Only relevant if discountType is 'flat'
+    },
+    offerActiveTime: {
+        type: String,
+        enum: ['always', 'specific_time'],
+        default: 'always'
+    },
+    // Only if specific_time
+    startTime: {
+        type: String, // Format "HH:mm" e.g. "14:00"
+        default: null
+    },
+    endTime: {
+        type: String, // Format "HH:mm"
+        default: null
+    },
+
+    // SEO / Meta Data
+    metaTitle: { type: String, trim: true },
+    metaDescription: { type: String, trim: true },
+    metaImage: {
+        url: { type: String },
+        publicId: { type: String }
+    },
+
+    // Products included in the sale
+    products: [{
+        product: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Product'
+        },
+        discount: {
+            type: Number,
+            default: 0,
+            min: 0
+        },
+        isActive: {
+            type: Boolean,
+            default: true
+        }
+    }]
+}, {
+    timestamps: true,
+    versionKey: false
+});
+
+// ========================================
+// PERFORMANCE OPTIMIZATION: Database Indexes
+// ========================================
+
+// Index for date range queries (active sales)
+clearanceSaleSchema.index({ startDate: 1, expireDate: 1 });
+
+const ClearanceSale = mongoose.model('ClearanceSale', clearanceSaleSchema);
+
+export default ClearanceSale;
+import mongoose from 'mongoose';
+
+const cookieConsentSchema = new mongoose.Schema(
+  {
+    isActive: {
+      type: Boolean,
+      required: true,
+      default: false,
+    },
+    content: {
+      type: String,
+      required: function () {
+        return this.isActive;
+      },
+      trim: true,
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      refPath: 'updatedByModel',
+    },
+    updatedByModel: {
+      type: String,
+      enum: ['Admin', 'Employee'],
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+// Ensure only one document exists
+const CookieConsent = mongoose.model('CookieConsent', cookieConsentSchema);
+
+export default CookieConsent;
+import mongoose from 'mongoose';
+
+const couponSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  code: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true,
+    uppercase: true
+  },
+  type: {
+    type: String,
+    enum: ['discount_on_purchase', 'free_delivery', 'first_order'],
+    required: true
+  },
+  discountType: {
+    type: String,
+    enum: ['amount', 'percent'],
+    default: 'amount',
+    required: function () { return this.type !== 'free_delivery'; }
+  },
+  discountAmount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  minPurchase: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  limitForSameUser: {
+    type: Number,
+    default: 1,
+    min: 1
+  },
+  startDate: {
+    type: Date,
+    required: true
+  },
+  expireDate: {
+    type: Date,
+    required: true
+  },
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  customerScope: {
+    type: String,
+    enum: ['all'],
+    default: 'all'
+  },
+  totalUsed: {
+    type: Number,
+    default: 0
+  }
+}, {
+  timestamps: true,
+  versionKey: false
+});
+
+// Compound index for quick validation lookups during checkout
+couponSchema.index({ code: 1, isActive: 1, startDate: 1, expireDate: 1 });
+
+const Coupon = mongoose.model('Coupon', couponSchema);
+
+export default Coupon;
+import mongoose from 'mongoose';
+import { hashPassword, comparePassword } from '../utils/security.js';
+import { ROLES } from '../constants.js';
+
+const customerSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: [true, 'Please add a name'],
+      trim: true,
+      maxlength: [50, 'Name cannot be more than 50 characters'],
+    },
+    email: {
+      type: String,
+      required: [true, 'Please add an email'],
+      unique: true,
+      match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please add a valid email'],
+      lowercase: true,
+    },
+    password: {
+      type: String,
+      required: [true, 'Please add a password'],
+      minlength: [8, 'Password must be at least 8 characters'],
+      select: false,
+    },
+    phoneNumber: {
+      type: String,
+      match: [/^[6-9]\d{9}$/, 'Please add a valid phone number'],
+      trim: true,
+    },
+    photo: {
+      url: {
+        type: String,
+        default: null,
+      },
+      publicId: {
+        type: String,
+        default: null,
+      },
+    },
+    role: {
+      type: String,
+      enum: Object.values(ROLES),
+      default: ROLES.CUSTOMER,
+    },
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    verificationCode: {
+      type: String,
+      select: false,
+    },
+    verificationCodeExpires: {
+      type: Date,
+      select: false,
+    },
+    lastLogin: {
+      type: Date,
+    },
+    loginAttempts: {
+      type: Number,
+      default: 0,
+      select: false,
+    },
+    lockUntil: {
+      type: Date,
+      select: false,
+    },
+    otpAttempts: {
+      type: Number,
+      default: 0,
+      select: false,
+    },
+    otpLockUntil: {
+      type: Date,
+      select: false,
+    },
+    lastPasswordReset: {
+      type: Date,
+    },
+    tokenVersion: {
+      type: Number,
+      default: 0,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+// High-performance indexes for admin filtering and searching
+customerSchema.index({ isActive: 1, role: 1, createdAt: -1 });
+
+// Encrypt password using Argon2 (assuming security.js uses it)
+customerSchema.pre('save', async function () {
+  if (!this.isModified('password')) {
+    return;
+  }
+  this.password = await hashPassword(this.password);
+});
+
+// Match user entered password to hashed password in database
+customerSchema.methods.matchPassword = async function (enteredPassword) {
+  return await comparePassword(this.password, enteredPassword);
+};
+
+// Virtual for account lockout status
+customerSchema.virtual('isLocked').get(function () {
+  return !!(this.lockUntil && this.lockUntil > Date.now());
+});
+
+const Customer = mongoose.model('Customer', customerSchema);
+
+export default Customer;
+import mongoose from 'mongoose';
+
+const customerEmailTemplateSchema = new mongoose.Schema(
+  {
+    event: {
+      type: String,
+      required: [true, 'Event type is required'],
+      unique: true,
+      enum: [
+        'Order Placed',
+        'Verify Email',
+        'Account Blocked',
+        'Account Unblocked',
+        'Support Ticket Reply',
+      ],
+    },
+    isEnabled: {
+      type: Boolean,
+      default: true,
+    },
+    logo: {
+      url: String,
+      publicId: String,
+    },
+    mainIcon: {
+      url: String,
+      publicId: String,
+    },
+    templateTitle: {
+      type: String,
+      required: [true, 'Template title is required'],
+      trim: true,
+    },
+    emailContent: {
+      type: String,
+      required: [true, 'Email content is required'],
+    },
+    footerDescription: {
+      type: String,
+      trim: true,
+    },
+    copyrightNotice: {
+      type: String,
+      trim: true,
+    },
+    includedLinks: {
+      privacyPolicy: { type: Boolean, default: false },
+      refundPolicy: { type: Boolean, default: false },
+      cancellationPolicy: { type: Boolean, default: false },
+      contactUs: { type: Boolean, default: false },
+    },
+    socialMediaLinks: {
+      facebook: { type: Boolean, default: false },
+      instagram: { type: Boolean, default: false },
+      twitter: { type: Boolean, default: false },
+      linkedin: { type: Boolean, default: false },
+      youtube: { type: Boolean, default: false },
+    },
+  },
+  { timestamps: true }
+);
+
+const CustomerEmailTemplate = mongoose.model('CustomerEmailTemplate', customerEmailTemplateSchema);
+
+export default CustomerEmailTemplate;
+import mongoose from 'mongoose';
+
+const dealOfTheDaySchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  products: [{
+    product: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Product',
+      required: true
+    },
+    isActive: {
+      type: Boolean,
+      default: true
+    }
+  }],
+  isPublished: {
+    type: Boolean,
+    default: false,
+  }
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+const DealOfTheDay = mongoose.model('DealOfTheDay', dealOfTheDaySchema);
+
+// Performance indexes for deal queries
+dealOfTheDaySchema.index({ isPublished: 1 });
+dealOfTheDaySchema.index({ createdAt: -1 });
+
+export default DealOfTheDay;
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
+
+const employeeSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: [true, 'Full name is required'],
+      trim: true,
+    },
+    email: {
+      type: String,
+      required: [true, 'Corporate email is required'],
+      unique: true,
+      lowercase: true,
+      trim: true,
+    },
+    password: {
+      type: String,
+      required: [true, 'Password is required'],
+      minlength: 8,
+      select: false,
+    },
+    phoneNumber: {
+      type: String,
+      required: [true, 'Phone number is required'],
+      trim: true,
+    },
+    role: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Role',
+      required: [true, 'Assigned role is required'],
+    },
+    profileImage: {
+      url: String,
+      publicId: String,
+    },
+    identityType: {
+      type: String,
+      required: [true, 'Identity type is required'],
+    },
+    identityNumber: {
+      type: String,
+      required: [true, 'Identity number is required'],
+    },
+    identityImage: {
+      front: {
+        url: String,
+        publicId: String,
+      },
+      back: {
+        url: String,
+        publicId: String,
+      }
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    tokenVersion: {
+      type: Number,
+      default: 0,
+    },
+    lastLogin: {
+      type: Date,
+    },
+  },
+  { timestamps: true }
+);
+
+// Hash password before saving
+employeeSchema.pre('save', async function () {
+  if (!this.isModified('password')) return;
+  this.password = await bcrypt.hash(this.password, 12);
+});
+
+// Compare password
+employeeSchema.methods.comparePassword = async function (candidatePassword, userPassword) {
+  return await bcrypt.compare(candidatePassword, userPassword);
+};
+
+const Employee = mongoose.model('Employee', employeeSchema);
+
+// High-performance indexes for employee queries
+employeeSchema.index({ role: 1, isActive: 1 });
+employeeSchema.index({ isActive: 1, createdAt: -1 });
+
+export default Employee;
+import mongoose from 'mongoose';
+
+const faqSchema = new mongoose.Schema(
+  {
+    question: {
+      type: String,
+      required: [true, 'Please provide a question'],
+      trim: true,
+    },
+    answer: {
+      type: String,
+      required: [true, 'Please provide an answer'],
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+const FAQ = mongoose.model('FAQ', faqSchema);
+
+// Performance indexes for FAQ queries
+faqSchema.index({ question: 1 });
+faqSchema.index({ answer: 1 });
+faqSchema.index({ createdAt: -1 });
+
+export default FAQ;
+import mongoose from 'mongoose';
+
+const flashDealSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  startDate: {
+    type: Date,
+    required: true
+  },
+  endDate: {
+    type: Date,
+    required: true
+  },
+  image: {
+    url: { type: String, required: true },
+    publicId: { type: String, required: true }
+  },
+  isPublished: {
+    type: Boolean,
+    default: false,
+  },
+  // Meta Data
+  metaTitle: {
+    type: String,
+    trim: true
+  },
+  metaDescription: {
+    type: String,
+    trim: true
+  },
+  metaImage: {
+    url: { type: String },
+    publicId: { type: String }
+  },
+  // Products included in the flash deal
+  products: [{
+    product: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Product',
+      required: true
+    },
+    isActive: {
+      type: Boolean,
+      default: true
+    }
+  }]
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// Search optimization for active flash deals
+flashDealSchema.index({ isPublished: 1, startDate: 1, endDate: 1 });
+flashDealSchema.index({ startDate: -1 }); // Recently created deals
+
+// Virtual for status (Active/Expired)
+flashDealSchema.virtual('status').get(function () {
+  const now = new Date();
+  if (now < this.startDate) return 'upcoming';
+  if (now > this.endDate) return 'expired';
+  return 'active';
+});
+
+const FlashDeal = mongoose.model('FlashDeal', flashDealSchema);
+
+export default FlashDeal;
+import mongoose from 'mongoose';
+
+const googleMapSchema = new mongoose.Schema(
+  {
+    isActive: {
+      type: Boolean,
+      default: false,
+    },
+    // Encrypted Configuration Fields
+    config: {
+      clientKey: { type: String, default: null }, // Used for Frontend/Browser
+      serverKey: { type: String, default: null }, // Used for Backend/Server-side
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      refPath: 'updatedByModel',
+    },
+    updatedByModel: {
+      type: String,
+      enum: ['Admin', 'Employee'],
+      default: 'Admin',
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+/**
+ * Singleton model for Google Map settings.
+ */
+const GoogleMap = mongoose.model('GoogleMap', googleMapSchema);
+
+export default GoogleMap;
+import mongoose from 'mongoose';
+
+const loginSettingSchema = new mongoose.Schema(
+  {
+    maxOtpHit: {
+      type: Number,
+      required: true,
+      default: 3,
+    },
+    otpResendTime: {
+      type: Number,
+      required: true,
+      default: 60, // seconds
+    },
+    temporaryBlockTime: {
+      type: Number,
+      required: true,
+      default: 21600, // seconds (6 hours)
+    },
+    maxLoginHit: {
+      type: Number,
+      required: true,
+      default: 3,
+    },
+    temporaryLoginBlockTime: {
+      type: Number,
+      required: true,
+      default: 21600, // seconds (6 hours)
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      refPath: 'updatedByModel',
+    },
+    updatedByModel: {
+      type: String,
+      enum: ['Admin', 'Employee'],
+      default: 'Admin',
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+// Ensure only one settings document exists
+const LoginSetting = mongoose.model('LoginSetting', loginSettingSchema);
+
+export default LoginSetting;
+import mongoose from 'mongoose';
+
+const newsletterSchema = new mongoose.Schema(
+  {
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+      lowercase: true,
+    },
+    status: {
+      type: String,
+      enum: ['subscribed', 'unsubscribed'],
+      default: 'subscribed',
+    },
+  },
+  { timestamps: true }
+);
+
+const Newsletter = mongoose.model('Newsletter', newsletterSchema);
+
+// Performance indexes for newsletter queries
+newsletterSchema.index({ status: 1 });
+newsletterSchema.index({ createdAt: -1 });
+
+export default Newsletter;
+import mongoose from 'mongoose';
+
+const paymentGatewaySchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      unique: true,
+      enum: ['paypal', 'razorpay', 'stripe', 'payu', 'ccavenue'],
+      lowercase: true,
+    },
+    title: {
+      type: String,
+      required: true,
+    },
+    logo: {
+      type: String,
+      default: '',
+    },
+    isActive: {
+      type: Boolean,
+      default: false,
+    },
+    // Encrypted Configuration Fields
+    config: {
+      apiKey: { type: String, default: null },
+      apiSecret: { type: String, default: null },
+      webhookSecret: { type: String, default: null },
+      clientId: { type: String, default: null }, // Specifically for PayPal
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      refPath: 'updatedByModel',
+    },
+    updatedByModel: {
+      type: String,
+      enum: ['Admin', 'Employee'],
+      default: 'Admin',
+    },
+  },
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
+);
+
+const PaymentGateway = mongoose.model('PaymentGateway', paymentGatewaySchema);
+
+export default PaymentGateway;
+import mongoose from 'mongoose';
+
+const paymentSettingSchema = new mongoose.Schema(
+  {
+    isCodActive: {
+      type: Boolean,
+      default: true,
+    },
+    isDigitalPaymentActive: {
+      type: Boolean,
+      default: true,
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      refPath: 'updatedByModel',
+    },
+    updatedByModel: {
+      type: String,
+      enum: ['Admin', 'Employee'],
+      default: 'Admin',
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+/**
+ * Singleton model for global payment settings.
+ */
+const PaymentSetting = mongoose.model('PaymentSetting', paymentSettingSchema);
+
+export default PaymentSetting;
+import mongoose from 'mongoose';
+
+const productSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    description: {
+      type: String,
+      required: true,
+    },
+    category: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ProductCategory',
+      required: true,
+    },
+    subCategory: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ProductSubCategory',
+      required: false,
+    },
+    brand: {
+      type: String,
+      trim: true,
+      required: false,
+    },
+    productType: {
+      type: String,
+      enum: ['physical', 'digital'],
+      default: 'physical',
+      required: true,
+    },
+    unit: {
+      type: String, // e.g., 'kg', 'pc', 'ltr'
+      required: true,
+    },
+    searchTags: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+    price: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    minOrderQty: {
+      type: Number,
+      default: 1,
+      min: 1
+    },
+    purchasePrice: {
+      type: Number,
+      required: false,
+      min: 0,
+    },
+    tax: {
+      type: Number,
+      default: 0,
+    },
+    taxType: {
+      type: String,
+      enum: ['percent', 'flat'],
+      default: 'percent',
+    },
+    discount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    discountType: {
+      type: String,
+      enum: ['percent', 'flat'],
+      default: 'percent',
+    },
+    shippingCost: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    multiplyShippingCost: {
+      type: Boolean,
+      default: false,
+    },
+    quantity: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: 0,
+    },
+    sku: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+    },
+    colors: [
+      {
+        type: String, // Hex code or Name
+      }
+    ],
+    images: [
+      {
+        url: String,
+        publicId: String,
+      },
+    ],
+    thumbnail: {
+      url: String,
+      publicId: String,
+    },
+    attributes: [
+      {
+        attribute: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'ProductAttribute',
+        },
+        values: [String],
+      },
+    ],
+    variations: [
+      {
+        attributeValues: {
+          type: Map,
+          of: String, // e.g., { "Size": "L", "Color": "Red" }
+        },
+        price: Number,
+        sku: String,
+        stock: Number,
+        image: {
+          url: String,
+          publicId: String
+        }
+      },
+    ],
+    seo: {
+      metaTitle: String,
+      metaDescription: String,
+      metaImage: {
+        url: String,
+        publicId: String
+      },
+    },
+    status: {
+      type: String,
+      enum: ['active', 'inactive'],
+      default: 'inactive',
+    },
+    isActive: {
+      type: Boolean,
+      default: false,
+    },
+    isFeatured: {
+      type: Boolean,
+      default: false,
+    },
+    videoLink: {
+      type: String,
+      trim: true
+    }
+  },
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
+);
+
+// Indexes for high performance
+productSchema.index({ name: 'text', description: 'text', searchTags: 'text' });
+productSchema.index({ status: 1, isActive: 1, category: 1, createdAt: -1 }); // Optimized category listings
+productSchema.index({ status: 1, isActive: 1, subCategory: 1, createdAt: -1 }); // Optimized subcategory listings
+productSchema.index({ status: 1, isActive: 1, isFeatured: 1, createdAt: -1 }); // Optimized homepage
+productSchema.index({ status: 1, isActive: 1, price: 1, createdAt: -1 }); // Optimized price sorting
+productSchema.index({ status: 1, isActive: 1, createdAt: -1 }); // Fast recent listings
+
+const Product = mongoose.model('Product', productSchema);
+
+export default Product;
+import mongoose from 'mongoose';
+
+
+const productAttributeSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      unique: true,
+    },
+    values: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Employee', // Or 'User' depending on who updates
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+const ProductAttribute = mongoose.model('ProductAttribute', productAttributeSchema);
+
+export default ProductAttribute;
+import mongoose from 'mongoose';
+
+const productCategorySchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      unique: true,
+    },
+    logo: {
+      type: {
+        url: String,
+        publicId: String,
+      },
+      required: false,
+    },
+    status: {
+      type: String,
+      enum: ['active', 'inactive'],
+      default: 'active',
+    },
+  },
+  { timestamps: true }
+);
+
+productCategorySchema.index({ status: 1, createdAt: -1 });
+
+const ProductCategory = mongoose.model('ProductCategory', productCategorySchema);
+
+export default ProductCategory;
+import mongoose from 'mongoose';
+
+const productSubCategorySchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    category: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ProductCategory',
+      required: true,
+    },
+  },
+  { timestamps: true }
+);
+
+// Prevent duplicate subcategory names under the same parent category
+productSubCategorySchema.index({ name: 1, category: 1 }, { unique: true });
+productSubCategorySchema.index({ category: 1, createdAt: -1 });
+
+const ProductSubCategory = mongoose.model('ProductSubCategory', productSubCategorySchema);
+
+export default ProductSubCategory;
+import mongoose from 'mongoose';
+
+const reliabilitySchema = new mongoose.Schema(
+  {
+    key: {
+      type: String,
+      enum: ['delivery', 'payment', 'return', 'product'],
+      required: true,
+      unique: true,
+    },
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    image: {
+      url: {
+        type: String,
+        required: true,
+      },
+      publicId: {
+        type: String,
+        required: true,
+      },
+    },
+    status: {
+      type: String,
+      enum: ['active', 'inactive'],
+      default: 'active',
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+const Reliability = mongoose.model('Reliability', reliabilitySchema);
+
+export default Reliability;
+import mongoose from 'mongoose';
+import { SYSTEM_PERMISSIONS } from '../constants.js';
+
+const roleSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: [true, 'Role name is required'],
+      unique: true,
+      trim: true,
+    },
+    permissions: {
+      type: [String],
+      enum: Object.values(SYSTEM_PERMISSIONS),
+      default: [],
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  { timestamps: true }
+);
+
+const Role = mongoose.model('Role', roleSchema);
+
+// High-performance indexes for role queries
+roleSchema.index({ isActive: 1 });
+
+export default Role;
+import mongoose from 'mongoose';
+
+const siteContentSchema = new mongoose.Schema(
+  {
+    aboutUs: {
+      type: String,
+      default: '',
+    },
+    termsAndConditions: {
+      type: String,
+      default: '',
+    },
+    privacyPolicy: {
+      type: String,
+      default: '',
+    },
+    refundPolicy: {
+      type: String,
+      default: '',
+    },
+    returnPolicy: {
+      type: String,
+      default: '',
+    },
+    shippingPolicy: {
+      type: String,
+      default: '',
+    },
+    cancellationPolicy: {
+      type: String,
+      default: '',
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+/**
+ * Singleton-like approach for site settings/content.
+ * We will usually only have one document in this collection.
+ */
+const SiteContent = mongoose.model('SiteContent', siteContentSchema);
+
+export default SiteContent;
+import mongoose from 'mongoose';
+
+const sliderSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    subtitle: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    buttonText: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    buttonUrl: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    image: {
+      url: {
+        type: String,
+        required: true,
+      },
+      publicId: {
+        type: String,
+        required: true,
+      },
+    },
+    published: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+// Indexes
+sliderSchema.index({ published: 1 });
+sliderSchema.index({ createdAt: -1 });
+
+const Slider = mongoose.model('Slider', sliderSchema);
+
+export default Slider;
+import mongoose from 'mongoose';
+
+const smsGatewaySchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      unique: true,
+      enum: ['2factor', 'twilio'],
+      lowercase: true,
+    },
+    isActive: {
+      type: Boolean,
+      default: false,
+    },
+    // Encrypted Configuration Fields
+    config: {
+      apiKey: { type: String, default: null }, // For 2Factor
+      sid: { type: String, default: null }, // For Twilio
+      token: { type: String, default: null }, // For Twilio
+      messagingServiceSid: { type: String, default: null }, // For Twilio
+      from: { type: String, default: null }, // For Twilio
+      otpTemplate: { type: String, default: 'Your OTP is {otp}' },
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      refPath: 'updatedByModel',
+    },
+    updatedByModel: {
+      type: String,
+      enum: ['Admin', 'Employee'],
+      default: 'Admin',
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+const SmsGateway = mongoose.model('SmsGateway', smsGatewaySchema);
+
+export default SmsGateway;
+import mongoose from 'mongoose';
+
+const socialLoginSchema = new mongoose.Schema(
+  {
+    provider: {
+      type: String,
+      required: true,
+      unique: true,
+      enum: ['google', 'facebook', 'apple'],
+      lowercase: true,
+    },
+    isActive: {
+      type: Boolean,
+      default: false,
+    },
+    // Encrypted Configuration Fields
+    config: {
+      callbackUrl: { type: String, default: null },
+      clientId: { type: String, default: null },
+      clientSecret: { type: String, default: null },
+      teamId: { type: String, default: null }, // Apple Specific
+      keyId: { type: String, default: null }, // Apple Specific
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      refPath: 'updatedByModel',
+    },
+    updatedByModel: {
+      type: String,
+      enum: ['Admin', 'Employee'],
+      default: 'Admin',
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+const SocialLogin = mongoose.model('SocialLogin', socialLoginSchema);
+
+export default SocialLogin;
+import mongoose from 'mongoose';
+
+const socialMediaSchema = new mongoose.Schema(
+  {
+    platform: {
+      type: String,
+      enum: ['Facebook', 'Instagram', 'YouTube', 'LinkedIn', 'X'],
+      required: true,
+      unique: true,
+    },
+    link: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    status: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+// Indexes
+socialMediaSchema.index({ status: 1 });
+
+const SocialMedia = mongoose.model('SocialMedia', socialMediaSchema);
+
+export default SocialMedia;
+import mongoose from 'mongoose';
+
+const socialMediaChatSchema = new mongoose.Schema(
+  {
+    platform: {
+      type: String,
+      required: true,
+      unique: true,
+      enum: ['whatsapp'],
+      lowercase: true,
+    },
+    value: {
+      type: String,
+      required: true,
+    },
+    isActive: {
+      type: Boolean,
+      default: false,
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      refPath: 'updatedByModel',
+    },
+    updatedByModel: {
+      type: String,
+      enum: ['Admin', 'Employee'],
+      default: 'Admin',
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+const SocialMediaChat = mongoose.model('SocialMediaChat', socialMediaChatSchema);
+
+export default SocialMediaChat;
+import mongoose from 'mongoose';
+
+const supportTicketSchema = new mongoose.Schema(
+  {
+    customer: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Customer',
+      required: [true, 'Customer is required'],
+    },
+    ticketId: {
+      type: String,
+      unique: true,
+      required: [true, 'Ticket ID is required'],
+    },
+    subject: {
+      type: String,
+      required: [true, 'Subject is required'],
+      trim: true,
+    },
+    priority: {
+      type: String,
+      enum: ['Low', 'Medium', 'High', 'Urgent'],
+      default: 'Medium',
+    },
+    description: {
+      type: String,
+      required: [true, 'Description is required'],
+    },
+    attachment: {
+      url: String,
+      publicId: String,
+    },
+    status: {
+      type: String,
+      enum: ['Open', 'In Progress', 'Resolved'],
+      default: 'Open',
+    },
+    adminReply: {
+      type: String,
+    },
+    replyDate: {
+      type: Date,
+    },
+  },
+  { timestamps: true }
+);
+
+// Index for performance on sorting
+supportTicketSchema.index({ customer: 1, status: 1, createdAt: -1 });
+supportTicketSchema.index({ status: 1, priority: 1, createdAt: -1 });
+supportTicketSchema.index({ createdAt: -1 });
+
+// Pre-save hook to generate Ticket ID (e.g., TK1001)
+supportTicketSchema.pre('validate', async function (next) {
+  if (this.isNew && !this.ticketId) {
+    const lastTicket = await mongoose.model('SupportTicket').findOne({}, {}, { sort: { createdAt: -1 } });
+    let lastId = 1000;
+    if (lastTicket && lastTicket.ticketId) {
+      const match = lastTicket.ticketId.match(/\d+/);
+      if (match) lastId = parseInt(match[0]);
+    }
+    this.ticketId = `TK${lastId + 1}`;
+  }
+  next();
+});
+
+const SupportTicket = mongoose.model('SupportTicket', supportTicketSchema);
+
+export default SupportTicket;
+import mongoose from 'mongoose';
+
+const systemSettingSchema = new mongoose.Schema(
+  {
+    appName: {
+      type: String,
+      required: true,
+      default: 'Multi Vendor',
+      trim: true,
+    },
+    appDebug: {
+      type: Boolean,
+      required: true,
+      default: true, // Default to true as requested
+      comment: 'If true, stack traces are shown in API responses',
+    },
+    appMode: {
+      type: String,
+      enum: ['Live', 'Dev', 'Maintenance'],
+      required: true,
+      default: 'Dev',
+    },
+    appUrl: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    // Audit Fields
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      refPath: 'updatedByModel',
+    },
+    updatedByModel: {
+      type: String,
+      enum: ['Admin', 'Employee'],
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+// Ensure single document pattern
+const SystemSetting = mongoose.model('SystemSetting', systemSettingSchema);
+
+export default SystemSetting;
+import mongoose from 'mongoose';
+
+const topbarSchema = new mongoose.Schema(
+  {
+    bgColor: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    textColor: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    text: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    status: {
+      type: String,
+      enum: ['active', 'inactive'],
+      default: 'active',
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+const Topbar = mongoose.model('Topbar', topbarSchema);
+
+export default Topbar;
+import mongoose from 'mongoose';
+
+const trustedBySchema = new mongoose.Schema(
+  {
+    image: {
+      url: {
+        type: String,
+        required: true,
+      },
+      publicId: {
+        type: String,
+        required: true,
+      },
+    },
+    status: {
+      type: String,
+      enum: ['active', 'inactive'],
+      default: 'active',
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+// Indexes
+trustedBySchema.index({ status: 1 });
+trustedBySchema.index({ createdAt: -1 });
+
+const TrustedBy = mongoose.model('TrustedBy', trustedBySchema);
+
+export default TrustedBy;
+import mongoose from 'mongoose';
+
+const wishlistItemSchema = new mongoose.Schema({
+  product: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Product',
+    required: true
+  },
+  addedAt: {
+    type: Date,
+    default: Date.now
+  }
+}, { _id: false });
+
+const wishlistSchema = new mongoose.Schema({
+  customerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Customer',
+    required: true,
+    unique: true, // One wishlist per customer
+  },
+  items: [wishlistItemSchema]
+}, {
+  timestamps: true,
+  versionKey: false
+});
+
+// Compound index for fast product lookup
+wishlistSchema.index({ customerId: 1, 'items.product': 1 });
+
+// Virtual for total items count
+wishlistSchema.virtual('totalItems').get(function () {
+  return this.items.length;
+});
+
+const Wishlist = mongoose.model('Wishlist', wishlistSchema);
+
+export default Wishlist;
